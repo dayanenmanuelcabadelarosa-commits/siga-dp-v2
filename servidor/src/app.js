@@ -27,6 +27,9 @@
 import cors from "cors";
 import express from "express";
 import helmet from "helmet";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import fs from "node:fs";
 
 import { ErrorDeApi } from "./errores.js";
 import { crearLimites } from "./limites.js";
@@ -85,11 +88,7 @@ export function crearApp({ limites } = {}) {
   app.use("/api", frenos.general);
   app.use("/api", rutasDeLaApi({ limites: frenos }));
 
-  import path from "node:path";
-import { fileURLToPath } from "node:url";
-import fs from "node:fs";
-
-/*
+  /*
   En produccion se sirve el cliente (SPA) desde la misma aplicacion. Si existe
   la carpeta de compilado del cliente, se entregan sus archivos estaticos y
   cualquier ruta que no sea de la API devuelve index.html (para que el router
