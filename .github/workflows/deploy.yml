@@ -1,0 +1,54 @@
+name: Desplegar en GCP
+
+on:
+  push:
+    branches: [principal, main]
+  workflow_dispatch:
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: us-central1
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run tipos
+      # Las pruebas de la API requieren PostgreSQL; se omiten en CI sin base.
+      - run: npm run test:web
+
+  desplegar:
+    needs: pruebas
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Configurar gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Enviar build a Cloud Build
+        run: |
+          gcloud builds submit \
+            --project="$PROJECT_ID" \
+            --config=cloudbuild.yaml \
+            --substitutions=_REGION="$REGION",_CLOUDSQL_INSTANCE="${{ secrets.CLOUDSQL_INSTANCE }}"
+
+      - name: Verificar despliegue
+        run: |
+          gcloud run services describe siga-dp --region="$REGION" --project="$PROJECT_ID" --format='value(status.url)'
+"

@@ -1,0 +1,40 @@
+{
+  "name": "siga-dp-v2",
+  "private": true,
+  "version": "2.0.0",
+  "type": "module",
+  "description": "SIGA-DP v2 — Sistema de gestión del Asadero Doña Pula",
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "servidor",
+    "cliente"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,web -c blue,magenta \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:api": "npm --workspace servidor run dev",
+    "dev:web": "npm --workspace cliente run dev",
+    "test": "npm run test:api && npm run test:web",
+    "test:api": "npm --workspace servidor run test",
+    "test:web": "npm --workspace cliente run test",
+    "base:crear": "npm --workspace servidor run base:crear",
+    "base:recrear": "npm --workspace servidor run base:recrear",
+    "base:migrar": "npm --workspace servidor run base:migrar",
+    "base:estado": "npm --workspace servidor run base:estado",
+    "base:semilla": "npm --workspace servidor run base:semilla",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "tipos": "npm --workspace cliente run tipos",
+    "build": "npm --workspace cliente run build",
+    "verificar": "npm run lint && npm run tipos && npm test"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "concurrently": "^10.0.6",
+    "eslint": "^10.13.0",
+    "globals": "^17.13.0",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.71.2"
+  }
+}

@@ -1,0 +1,46 @@
+@import "tailwindcss";
+
+/*
+  PALETA DE DOÑA PULA (un solo lugar).
+  ------------------------------------
+  Es la misma identidad del prototipo: carbón, brasa, ladrillo, miel, crema,
+  madera, hoja y pizarra. Tailwind 4 crea las clases a partir de estas
+  variables: `bg-brasa`, `text-madera`, `border-miel`…
+
+  Si un color cambia aquí, cambia en todo el sistema. No se escribe un color
+  suelto en las pantallas.
+*/
+@theme {
+  --color-carbon: #1f1a17;
+  --color-brasa: #d9531e;
+  --color-ladrillo: #a8321f;
+  --color-miel: #e8a33d;
+  --color-crema: #fbf4e9;
+  --color-madera: #6b4226;
+  --color-hoja: #3f7d4e;
+  --color-pizarra: #5b6b7a; /* azul grisáceo, para mesas reservadas */
+
+  --font-sans: "Poppins", ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  /*
+    El esquema es claro aunque el sistema operativo esté en oscuro: el salón
+    trabaja con luz y una pantalla que se pone negra sola es un problema, no
+    una preferencia.
+  */
+  html {
+    color-scheme: light;
+  }
+
+  body {
+    @apply bg-crema text-carbon antialiased;
+  }
+
+  /* El foco del teclado se ve siempre: quien navega con Tab tiene que saber
+     dónde está. */
+  :focus-visible {
+    outline-width: 2px;
+    outline-offset: 2px;
+  }
+}

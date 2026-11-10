@@ -1,0 +1,47 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Levantar todo (API + cliente)",
+      "detail": "Arranca la API en el puerto 4000 y el cliente en el 5173.",
+      "type": "shell",
+      "command": "npm run dev",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "Ejecutar las pruebas",
+      "detail": "npm test — pruebas de la API y del cliente.",
+      "type": "shell",
+      "command": "npm test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Ejecutar ESLint",
+      "type": "shell",
+      "command": "npm run lint",
+      "problemMatcher": ["$eslint-stylish"]
+    },
+    {
+      "label": "Comprobar los tipos",
+      "type": "shell",
+      "command": "npm run tipos",
+      "problemMatcher": ["$tsc"]
+    },
+    {
+      "label": "Verificar todo (lint + tipos + pruebas)",
+      "detail": "Lo que hay que dejar en verde antes de cada commit.",
+      "type": "shell",
+      "command": "npm run verificar",
+      "problemMatcher": []
+    }
+  ]
+}

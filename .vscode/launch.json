@@ -1,0 +1,25 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Depurar la API",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/servidor/src/index.js",
+      "cwd": "${workspaceFolder}/servidor",
+      "envFile": "${workspaceFolder}/servidor/.env",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "name": "Depurar la prueba que tengo abierta",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/node_modules/vitest/vitest.mjs",
+      "args": ["run", "--config", "${workspaceFolder}/servidor/vitest.config.js", "${file}"],
+      "cwd": "${workspaceFolder}/servidor",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    }
+  ]
+}

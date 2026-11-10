@@ -1,0 +1,36 @@
+{
+  "name": "siga-dp-servidor",
+  "private": true,
+  "version": "2.0.0",
+  "type": "module",
+  "description": "API de SIGA-DP v2 (Node + Express + PostgreSQL)",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "base:crear": "node herramientas/crear-base.js",
+    "base:recrear": "node herramientas/crear-base.js --recrear",
+    "base:pruebas": "node herramientas/crear-base.js --solo-pruebas",
+    "base:migrar": "node herramientas/migrar.js",
+    "base:estado": "node herramientas/migrar.js --estado",
+    "base:semilla": "node herramientas/semilla.js",
+    "claves:verificar": "node herramientas/verificar-claves.js",
+    "certificados:preparar": "node herramientas/preparar-certificado.js",
+    "datos:demo": "node herramientas/datos-de-demostracion.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.8",
+    "express": "^5.3.0",
+    "express-rate-limit": "^8.7.1",
+    "helmet": "^8.3.0",
+    "pg": "^8.23.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "supertest": "^7.3.1",
+    "vitest": "^5.0.5"
+  }
+}

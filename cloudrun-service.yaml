@@ -1,0 +1,64 @@
+# Plantilla de servicio de Cloud Run para SIGA-DP v2.
+# Aplicar con: gcloud run services replace cloudrun-service.yaml --region us-central1
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: siga-dp
+spec:
+  template:
+    metadata:
+      annotations:
+        run.googleapis.com/cloudsql-instances: PROJECT_ID:us-central1:siga-dp-db
+    spec:
+      containers:
+        - image: us-central1-docker.pkg.dev/PROJECT_ID/siga-dp/siga-dp:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: PUERTO
+              value: "8080"
+            - name: BD_HOST
+              value: /cloudsql/PROJECT_ID:us-central1:siga-dp-db
+            - name: BD_USUARIO
+              value: postgres
+            - name: BD_NOMBRE
+              value: siga_dp_v2
+            - name: ORIGENES
+              value: https://siga-dp-XXXX-uc.a.run.app
+            - name: CLAVE_SESION
+              valueFrom:
+                secretKeyRef:
+                  name: clave-sesion
+                  key: latest
+            - name: BD_CLAVE
+              valueFrom:
+                secretKeyRef:
+                  name: bd-clave
+                  key: latest
+            - name: PAYPAL_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: paypal-client-id
+                  key: latest
+            - name: PAYPAL_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: paypal-client-secret
+                  key: latest
+            - name: IMECF_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: imecf-api-key
+                  key: latest
+            - name: GROQ_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: groq-api-key
+                  key: latest
+          resources:
+            limits:
+              cpu: "1"
+              memory: 512Mi
+"
