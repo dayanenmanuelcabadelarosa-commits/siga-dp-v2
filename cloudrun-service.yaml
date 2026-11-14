@@ -9,6 +9,8 @@ spec:
     metadata:
       annotations:
         run.googleapis.com/cloudsql-instances: PROJECT_ID:us-central1:siga-dp-db
+        # 0 instancias mínimas: se escala a cero cuando no hay tráfico (ahorra costos)
+        run.googleapis.com/min-instances: "0"
     spec:
       containers:
         - image: us-central1-docker.pkg.dev/PROJECT_ID/siga-dp/siga-dp:latest
@@ -27,6 +29,14 @@ spec:
               value: siga_dp_v2
             - name: ORIGENES
               value: https://siga-dp-XXXX-uc.a.run.app
+            - name: PAYPAL_ENTORNO
+              value: sandbox
+            - name: PAYPAL_MONEDA
+              value: USD
+            - name: IMECF_API_URL
+              value: https://ecf-platform-backend-50801509587.us-central1.run.app
+            - name: GROQ_MODEL
+              value: openai/gpt-oss-120b
             - name: CLAVE_SESION
               valueFrom:
                 secretKeyRef:
@@ -46,6 +56,11 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: paypal-client-secret
+                  key: latest
+            - name: PAYPAL_WEBHOOK_ID
+              valueFrom:
+                secretKeyRef:
+                  name: paypal-webhook-id
                   key: latest
             - name: IMECF_API_KEY
               valueFrom:

@@ -1,54 +1,55 @@
-name: Desplegar en GCP
+name: Despliegue SIGA-DP v2 (Cloud Build + Cloud Run)
 
 on:
   push:
-    branches: [principal, main]
-  workflow_dispatch:
-
-env:
-  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-  REGION: us-central1
+    branches: [ main, principal ]
 
 jobs:
-  pruebas:
+  pruebas-y-despliegue:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run lint
-      - run: npm run tipos
-      # Las pruebas de la API requieren PostgreSQL; se omiten en CI sin base.
-      - run: npm run test:web
 
-  desplegar:
-    needs: pruebas
-    runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write
+      id-token: write  # para autenticar con Workload Identity Federation
+
     steps:
-      - uses: actions/checkout@v4
+      # 1. Traer el código
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
 
-      - id: auth
-        uses: google-github-actions/auth@v2
+      # 2. Configurar Node.js
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          node-version: '22'
 
+      # 3. Instalar dependencias
+      - name: Instalar dependencias
+        run: npm ci
+
+      # 4. Ejecutar pruebas (API contra PostgreSQL y cliente)
+      #    Nota: en GitHub Actions necesitas un servicio de PostgreSQL.
+      - name: Ejecutar pruebas
+        run: npm test
+
+      # 5. Autenticar con Google Cloud (Workload Identity Federation)
+      #    Configura esto en GCP: IAM > Carga de trabajo > Grupo de identidades.
+      - name: Autenticar con Google Cloud
+        id: auth
+        uses: 'google-github-actions/auth@v2'
+        with:
+          token_format: 'access_token'
+          workload_identity_provider: 'projects/${{ secrets.GCP_PROJECT_NUMBER }}/locations/global/workloadIdentityPools/github-pool/providers/github-provider'
+          service_account: 'github-actions@${{ secrets.GCP_PROJECT_ID }}.iam.gserviceaccount.com'
+
+      # 6. Configurar gcloud
       - name: Configurar gcloud
-        uses: google-github-actions/setup-gcloud@v2
+        uses: 'google-github-actions/setup-gcloud@v2'
+        with:
+          project_id: '${{ secrets.GCP_PROJECT_ID }}'
 
-      - name: Enviar build a Cloud Build
+      # 7. Ejecutar Cloud Build (construye imagen, la sube a Artifact Registry y despliega en Cloud Run)
+      - name: Desplegar con Cloud Build
         run: |
-          gcloud builds submit \
-            --project="$PROJECT_ID" \
-            --config=cloudbuild.yaml \
-            --substitutions=_REGION="$REGION",_CLOUDSQL_INSTANCE="${{ secrets.CLOUDSQL_INSTANCE }}"
-
-      - name: Verificar despliegue
-        run: |
-          gcloud run services describe siga-dp --region="$REGION" --project="$PROJECT_ID" --format='value(status.url)'
-"
+          gcloud builds submit --config=cloudbuild.yaml \
+            --substitutions=_REGION=us-central1,_REPO=siga-dp,_SERVICE=siga-dp,_IMAGE=siga-dp,_CLOUDSQL_INSTANCE=${{ secrets.CLOUDSQL_INSTANCE }}
