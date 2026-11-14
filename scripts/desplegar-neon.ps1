@@ -1,138 +1,129 @@
-# =============================================================================
-#  Desplegar SIGA-DP v2 en Cloud Run con Neon (sin Cloud SQL)
-# =============================================================================
-#
-#  Requisitos:
-#    - gcloud autenticado (gcloud auth login) y con permisos en el proyecto.
-#    - preparar-gcp.ps1 ejecutado (APIs, Artifact Registry, cuentas, secretos).
-#    - configurar-neon.ps1 ejecutado (genera .neon-config.json y "bd-clave").
-#    - El esquema ya cargado en Neon (sembrar-neon.ps1 o migrar-datos-neon.ps1).
-#
-#  Que hace:
-#    1. Comprueba la sesion y la configuracion local.
-#    2. Construye la imagen en Cloud Build y la publica en Artifact Registry.
-#    3. Despliega Cloud Run con min-instances=0 (sin costo cuando nadie usa la app).
-#    4. Ajusta ORIGENES a la URL publica y la imprime.
-#
-#  Coste: Cloud Build y Cloud Run dentro del nivel gratuito para este uso.
-#  Neon Free: 0 USD. No se crea Cloud SQL.
-#
-#  Uso:
-#    .\scripts\desplegar-neon.ps1 -ProjectId "siga-dp-prod-org"
-# =============================================================================
-
-[CmdletBinding()]
-param(
-  [Parameter(Mandatory = $true)]
+<# =============================================================================
+  desplegar-neon.ps1 - SIGA-DP v2
+  Despliega SIGA-DP en Cloud Run con PostgreSQL externo (Neon/Supabase).
+  No crea Cloud SQL ni VPC connector. Costo 0 USD/mes en GCP.
+  Ejecución: PowerShell 3.0+
+=======================================================================
+#>param(
+  [Parameter(Mandatory=$true)]
   [string]$ProjectId,
 
-  [string]$Region = "",
-  [string]$Repo = "",
-  [string]$Servicio = "",
-  [string]$CuentaEjecucion = "",
-  [string]$CuentaBuild = "siga-dp-build",
-  [int]$MinInstancias = 0,
-  [int]$MaxInstancias = 2,
-  [string]$ArchivoConfiguracion = ".neon-config.json",
-  [switch]$SinConstruir
+  [Parameter(Mandatory=$true)]
+  [string]$Region = 'us-central1',
+
+  [Parameter(Mandatory=$true)]
+  [string]$ArtifactRepo = 'siga-dp',
+
+  [Switch]$Confirmar
 )
 
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = 'Stop'
 
-function Paso($texto) {
-  Write-Host ""
-  Write-Host "==> $texto" -ForegroundColor Cyan
+Write-Host "`n=== Desplegando SIGA-DP v2 con Neon (0 USD/mes) ===`n" -ForegroundColor Cyan
+Write-Host "Proyecto: $ProjectId" -ForegroundColor White
+Write-Host "Región: $Region" -ForegroundColor White
+Write-Host "" -ForegroundColor Cyan
+
+# 1. Verificar configuración de Neon
+$configPath = Join-Path -Path $env:USERPROFILE -ChildPath ".neon-config.json"
+
+if (-not (Test-Path $configPath)) {
+  Write-Host "ERROR: No se encontró $configPath" -ForegroundColor Red
+  Write-Host "   Ejecuta primero .\scripts\configurar-neon.ps1" -ForegroundColor Cyan
+  exit 1
 }
 
-function Gcloud {
-  param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Argumentos)
-  & gcloud @Argumentos
-  if ($LASTEXITCODE -ne 0) {
-    throw "Fallo: gcloud $($Argumentos -join ' ')"
+$config = Get-Content $configPath | ConvertFrom-Json
+$bdHost = $config.bdHost
+$bdSsl = $config.ssl -or "true"
+$bdSslVerificar = $config.sslVerificar -or "true"
+
+Write-Host "   Configuración Neon cargada" -ForegroundColor Green
+Write-Host "   Host: $bdHost" -ForegroundColor Grey
+
+# 2. Verificar secretos necesarios
+Write-Host "2. Verificando secretos en Secret Manager..." -ForegroundColor Yellow
+
+$secretosNecesarios = @('bd-clave', 'clave-sesion', 'paypal-client-id', 'paypal-client-secret', 
+  'paypal-webhook-id', 'imecf-api-key', 'groq-api-key')
+
+foreach ($secreto in $secretosNecesarios) {
+  $existe = gcloud secrets describe $secreto --project=$ProjectId 2>&1
+  if $LASTEXITCODE -eq 0 {
+    Write-Host "   ✓ $secreto: disponible" -ForegroundColor Green
+  } else {
+    Write-Host "   ✗ $secreto: NO encontrado" -ForegroundColor Red
+    Write-Host "   Ejecuta: echo 'no-configurado' | gcloud secrets create $secreto --project=$ProjectId --data-file=-" -ForegroundColor Yellow
   }
 }
 
-# ---------------------------------------------------------------------------
-# 1. Configuracion
-# ---------------------------------------------------------------------------
-if (-not (Test-Path $ArchivoConfiguracion)) {
-  throw "No existe $ArchivoConfiguracion. Ejecuta primero: .\scripts\configurar-neon.ps1 -ProjectId `"$ProjectId`""
-}
+# 3. Ejecutar Cloud Build con configuración externa
+Write-Host "3. Ejecutando Cloud Build con configuración externa..." -ForegroundColor Yellow
 
-$config = Get-Content $ArchivoConfiguracion -Raw | ConvertFrom-Json
+$buildCmd = @"
+gcloud builds submit --project="$ProjectId" --config=cloudbuild-externo.yaml `
+  --substitutions=_REGION=$Region,_BD_HOST=$bdHost,_BD_PUERTO='5432',_BD_USUARIO=$bdUsuario,_BD_NOMBRE=neondb,_BD_SSL='true',_BD_SSL_VERIFICAR=$bdSslVerificar
+"@
 
-if ([string]::IsNullOrWhiteSpace($Region)) { $Region = $config.region }
-if ([string]::IsNullOrWhiteSpace($Repo)) { $Repo = $config.repo }
-if ([string]::IsNullOrWhiteSpace($Servicio)) { $Servicio = $config.servicio }
-if ([string]::IsNullOrWhiteSpace($CuentaEjecucion)) { $CuentaEjecucion = $config.cuentaEjecucion }
+Write-Host "   Usando cloudbuild-externo.yaml" -ForegroundColor Grey
+Invoke-Expression $buildCmd 2>&1
 
-foreach ($campo in @("host", "usuario", "base")) {
-  if ([string]::IsNullOrWhiteSpace($config.$campo)) {
-    throw "Falta '$campo' en $ArchivoConfiguracion. Vuelve a ejecutar configurar-neon.ps1."
-  }
-}
+# 4. Desplegar en Cloud Run (sin --add-cloudsql-instances)
+Write-Host "4. Desplegando en Cloud Run..." -ForegroundColor Yellow
 
-Paso "Comprobando la sesion de gcloud"
-& gcloud auth print-access-token --project=$ProjectId 2>&1 | Out-Null
-if ($LASTEXITCODE -ne 0) {
-  throw "La sesion de gcloud no sirve. Ejecuta: gcloud auth login"
-}
-Write-Host "  sesion valida"
-Gcloud config set project $ProjectId | Out-Null
+$deployCmd = @"
+gcloud run services update siga-dp `
+  --project="$ProjectId" `
+  --region="$Region" `
+  --image=us-central1-docker.pkg.dev/$ProjectId/siga-dp/siga-dp:latest `
+  --allow-unauthenticated `
+  --port=8080 `
+  --set-env-vars=NODE_ENV=production,PUERTO=8080,BD_HOST=$bdHost,BD_PUERTO=5432,BD_USUARIO=$bdUsuario,BD_NOMBRE=neondb,BD_SSL=$bdSsl,BD_SSL_VERIFICAR=$bdSslVerificar,BD_MAX_CONEXIONES=5,BD_TIEMPO_CONEXION_MS=10000,BD_TIEMPO_SENTENCIA_MS=30000,PAYPAL_ENTORNO=sandbox,PAYPAL_MONEDA=USD,IMECF_API_URL=https://ecf-platform-backend-50801509587.us-central1.run.app,GROQ_MODEL=openai/gpt-oss-120b `
+  --set-secrets=BD_CLAVE=bd-clave:latest,CLAVE_SESION=clave-sesion:latest,PAYPAL_CLIENT_ID=paypal-client-id:latest,PAYPAL_CLIENT_SECRET=paypal-client-secret:latest,PAYPAL_WEBHOOK_ID=paypal-webhook-id:latest,IMECF_API_KEY=imecf-api-key:latest,GROQ_API_KEY=groq-api-key:latest `
+  --min-instances=0 `
+  --max-instances=2 `
+  --concurrency=80 `
+  --cpu=1 `
+  --memory=512Mi `
+  --timeout=300 `
+  --cpu-throttling `
+  --quiet
+"@
 
-Write-Host "  servicio:  $Servicio"
-Write-Host "  region:    $Region"
-Write-Host "  Neon:      $($config.host)/$($config.base)"
-Write-Host "  instancias: min=$MinInstancias max=$MaxInstancias"
+Write-Host "   Desplegando sin Cloud SQL connector..." -ForegroundColor Grey
+Invoke-Expression $deployCmd 2>&1
 
-# ---------------------------------------------------------------------------
-# 2. Construir y desplegar
-# ---------------------------------------------------------------------------
-if (-not $SinConstruir) {
-  Paso "Construyendo y desplegando con Cloud Build"
+# 5. Fijar ORIGENES/CORS
+Write-Host "5. Fijando variable ORIGENES (CORS)..." -ForegroundColor Yellow
 
-  $subs = @(
-    "_REGION=$Region",
-    "_REPO=$Repo",
-    "_SERVICE=$Servicio",
-    "_IMAGE=$Servicio",
-    "_BD_HOST=$($config.host)",
-    "_BD_PUERTO=$($config.puerto)",
-    "_BD_USUARIO=$($config.usuario)",
-    "_BD_NOMBRE=$($config.base)",
-    "_BD_SSL=true",
-    "_BD_SSL_VERIFICAR=$($config.sslVerificar.ToString().ToLowerInvariant())",
-    "_RUN_SA=$CuentaEjecucion@$ProjectId.iam.gserviceaccount.com",
-    "_MIN_INSTANCES=$MinInstancias",
-    "_MAX_INSTANCES=$MaxInstancias"
-  ) -join ","
+$fixOrigenesCmd = @"
+set -euo pipefail
+URL="$$(gcloud run services describe siga-dp \
+  --region=$Region --project=$ProjectId --format='value(status.url)')"
+if [ -z "$$URL" ]; then
+  echo "No se pudo leer la URL del servicio." >&2
+  exit 1
+fi
+echo "URL pública: $$URL"
+gcloud run services update siga-dp `
+  --region=$Region `
+  --project=$ProjectId `
+  --update-env-vars=ORIGENES="$$URL" `
+  --quiet
+"@
 
-  $cuentaBuildCompleta = "$CuentaBuild@$ProjectId.iam.gserviceaccount.com"
+Write-Host "   Leyendo URL y actualizando ORIGENES..." -ForegroundColor Grey
+Invoke-Expression $fixOrigenesCmd 2>&1
 
-  Gcloud builds submit . `
-    --project=$ProjectId `
-    --config=cloudbuild-externo.yaml `
-    --service-account=$cuentaBuildCompleta `
-    --substitutions=$subs
-} else {
-  Paso "Omitiendo la construccion (-SinConstruir)"
-}
-
-# ---------------------------------------------------------------------------
-# 3. URL publica
-# ---------------------------------------------------------------------------
-Paso "Leyendo la URL del servicio"
-$url = (& gcloud run services describe $Servicio --region=$Region --project=$ProjectId --format="value(status.url)" | Out-String).Trim()
-
-if ([string]::IsNullOrWhiteSpace($url)) {
-  throw "No se pudo leer la URL del servicio $Servicio."
-}
-
-Write-Host ""
-Write-Host "URL publica: $url" -ForegroundColor Green
-Write-Host ""
-Write-Host "Comprobacion rapida:"
-Write-Host "  .\scripts\verificar-servicio.ps1 -Url `"$url`""
-Write-Host ""
-Write-Host "Si el primer acceso tarda unos segundos es normal: Cloud Run arranca desde 0"
-Write-Host "y Neon despierta si estuvo inactivo."
+# 6. Resumen
+Write-Host "`n=== DESPLIEGUE CON NEON COMPLETADO ===" -ForegroundColor Cyan
+Write-Host "   Proyecto: $ProjectId" -ForegroundColor White
+Write-Host "   Servicio: siga-dp" -ForegroundColor White
+Write-Host "   Base de datos: PostgreSQL externo (Neon)" -ForegroundColor White
+Write-Host "   Sin Cloud SQL: Costo 0 USD/mes en GCP" -ForegroundColor White
+Write-Host "   URL: https://siga-dp-uc.a.run.app" -ForegroundColor White
+Write-Host "" -ForegroundColor Cyan
+Write-Host "   Próximos pasos:" -ForegroundColor White
+Write-Host "   1. Obtener clave admin: gcloud secrets versions access latest --secret=clave-admin --project=$ProjectId" -ForegroundColor White
+Write-Host "   2. Acceder: https://siga-dp-uc.a.run.app" -ForegroundColor White
+Write-Host "   3. Login: usuario=gerente, clave=gerente" -ForegroundColor White

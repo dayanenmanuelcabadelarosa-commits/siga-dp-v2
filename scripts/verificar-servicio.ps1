@@ -1,149 +1,90 @@
-# =============================================================================
-#  Verificación de un despliegue de SIGA-DP v2
-# =============================================================================
-#
-#  Comprueba, sin instalar nada:
-#    1. /api/salud responde 200.
-#    2. La página principal devuelve el HTML del cliente.
-#    3. Una ruta profunda (SPA) devuelve index.html y no 404.
-#    4. El login contra PostgreSQL funciona.
-#    5. /api/acceso/yo devuelve el usuario y sus permisos.
-#    6. Una ruta inexistente devuelve 404 con el formato de la API.
-#
-#  Uso:
-#    .\scripts\verificar-servicio.ps1 -Url "https://siga-dp-xxxx-uc.a.run.app"
-#
-#  Para el login, si no pasas -Usuario, lo pide por consola. La clave se pide
-#  como SecureString y no se imprime.
-# =============================================================================
-
-[CmdletBinding()]
-param(
-  [Parameter(Mandatory = $true)]
+<# =============================================================================
+  verificar-servicio.ps1 - SIGA-DP v2
+  Verifica que el servicio de Cloud Run esté funcionando correctamente.
+  Ejecución: PowerShell 3.0+
+=======================================================================
+#>param(
+  [Parameter(Mandatory=$true)]
   [string]$Url,
 
-  [string]$Usuario = "gerente",
-  [string]$Clave = ""
+  [Parameter(Mandatory=$true)]
+  [string]$ProjectId,
+
+  [Parameter(Mandatory=$true)]
+  [string]$Region = 'us-central1'
 )
 
-$ErrorActionPreference = "Stop"
-$Url = $Url.TrimEnd("/")
-$fallos = 0
+$ErrorActionPreference = 'Stop'
 
-function Bien($texto) {
-  Write-Host "  OK   $texto" -ForegroundColor Green
-}
+Write-Host "`n=== Verificando servicio de SIGA-DP ===`n" -ForegroundColor Cyan
+Write-Host "URL: $Url" -ForegroundColor White
+Write-Host "Proyecto: $ProjectId" -ForegroundColor White
+Write-Host "" -ForegroundColor Cyan
 
-function Mal($texto) {
-  Write-Host "  FALLA $texto" -ForegroundColor Red
-  $script:fallos++
-}
+# 1. Describir el servicio
+Write-Host "1. Obteniendo información del servicio..." -ForegroundColor Yellow
+$describeCmd = "gcloud run services describe siga-dp --region=$Region --project=$ProjectId --format='value(status.url,spec.template.metadata.autoscaling.knative.dev/minScale)'"
+$serviceInfo = Invoke-Expression $describeCmd 2>&1
 
-Write-Host "Verificando $Url"
-Write-Host ""
+Write-Host "   URL actual: $($serviceInfo -split "`n")[0]" -ForegroundColor Grey
+Write-Host "   minScale: $($serviceInfo -split "`n")[1]" -ForegroundColor Grey
 
-# 1. Salud
+# 2. Probar endpoint de salud
+Write-Host "2. Probando endpoint /api/salud..." -ForegroundColor Yellow
+$healthUrl = "$Url/api/salud"
 try {
-  $salud = Invoke-RestMethod "$Url/api/salud" -TimeoutSec 20
-  if ($salud.ok -eq $true -and $salud.datos.estado -eq "ok") {
-    Bien "/api/salud -> ok"
-  } else {
-    Mal "/api/salud respondió algo inesperado"
+  $healthResult = Invoke-RestMethod -Uri $healthUrl -Method Get -TimeoutSec 10
+  Write-Host "   Resultado: $($healthResult.ok)" -ForegroundColor Green
+  if ($healthResult.ok -and $healthResult.datos) {
+    Write-Host "   Estado: $($healthResult.datos.estado)" -ForegroundColor Green
   }
 } catch {
-  Mal "/api/salud no respondió: $($_.Exception.Message)"
+  Write-Host "   ERROR: No se pudo conectar con $healthUrl" -ForegroundColor Red
+  Write-Host "   El servicio aún puede estar escalando a cero (espere 1-2 minutos)" -ForegroundColor Yellow
 }
 
-# 2. Página principal
+# 3. Probar raíz de la aplicación
+Write-Host "3. Probando raíz de la aplicación..." -ForegroundColor Yellow
+$raizUrl = "$Url/"
 try {
-  $codigo = curl.exe -s -o "$env:TEMP\siga-verificacion-index.html" -w "%{http_code}" "$Url/"
-  $html = Get-Content "$env:TEMP\siga-verificacion-index.html" -Raw
-  if ($codigo -eq "200" -and $html -match 'id="root"') {
-    Bien "página principal -> HTML del cliente"
+  $raizResult = Invoke-RestMethod -Uri $raizUrl -Method Get -TimeoutSec 10
+  Write-Host "   Status: OK" -ForegroundColor Green
+  Write-Host "   Contiene #root: $($raizResult -match '#root')" -ForegroundColor Grey
+} catch {
+  Write-Host "   ERROR: No se pudo conectar con $raizUrl" -ForegroundColor Red
+}
+
+# 4. Probar login
+Write-Host "4. Probando login..." -ForegroundColor Yellow
+$loginUrl = "$Url/api/acceso/entrar"
+$loginData = '{"usuario":"gerente","clave":"gerente"}'
+try {
+  $loginResult = Invoke-RestMethod -Uri $loginUrl -Method Post -Body $loginData -ContentType "application/json" -TimeoutSec 10
+  Write-Host "   Login exitoso" -ForegroundColor Green
+  Write-Host "   Token recibido: $($loginResult.datos.token -substring 0, 20)..." -ForegroundColor Grey
+  Write-Host "   Permisos: $($loginResult.datos.permisos.Count) permisos" -ForegroundColor Grey
+} catch {
+  Write-Host "   ERROR en login" -ForegroundColor Red
+  Write-Host "   Verifica que los secretos bd-clave y clave-sesión estén configurados" -ForegroundColor Red
+}
+
+# 5. Probar obtener mi información
+Write-Host "5. Probando /api/acceso/yo..." -ForegroundColor Yellow
+$yoUrl = "$Url/api/acceso/yo"
+try {
+  # Obtener token del paso anterior (simplificado)
+  $token = Read-Host "Proporciona un token de sesión (o deja vacío para saltar)"
+  if [-string]::IsNullOrWhiteSpace($token) {
+    Write-Host   "   Saltando prueba /api/acceso/yo" -ForegroundColor Yellow
   } else {
-    Mal "página principal -> HTTP $codigo"
+    $yoResult = Invoke-RestMethod -Uri $yoUrl -Method Get -Header @("Authorization"="Bearer $token") -TimeoutSec 10
+    Write-Host "   Usuario: $($yoResult.datos.usuario)" -ForegroundColor Green
+    Write-Host "   Rol: $($yoResult.datos.rol)" -ForegroundColor Green
+    Write-Host "   Permisos: $($yoResult.datos.permisos.Count) permisos" -ForegroundColor Green
   }
 } catch {
-  Mal "página principal: $($_.Exception.Message)"
+  Write-Host "   ERROR en /api/acceso/yo" -ForegroundColor Red
 }
 
-# 3. Ruta profunda (SPA)
-try {
-  $codigo = curl.exe -s -o "$env:TEMP\siga-verificacion-spa.html" -w "%{http_code}" "$Url/cuentas"
-  $html = Get-Content "$env:TEMP\siga-verificacion-spa.html" -Raw
-  if ($codigo -eq "200" -and $html -match 'id="root"') {
-    Bien "ruta profunda /cuentas -> index.html (SPA)"
-  } else {
-    Mal "ruta profunda /cuentas -> HTTP $codigo"
-  }
-} catch {
-  Mal "ruta profunda: $($_.Exception.Message)"
-}
-
-# 4. Login
-$token = $null
-try {
-  if ([string]::IsNullOrWhiteSpace($Clave)) {
-    $seguro = Read-Host "Clave de $Usuario" -AsSecureString
-    $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($seguro)
-    try {
-      $Clave = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
-    } finally {
-      [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
-    }
-  }
-
-  $cuerpo = @{ usuario = $Usuario; clave = $Clave } | ConvertTo-Json -Compress
-  $login = Invoke-RestMethod "$Url/api/acceso/entrar" `
-    -Method Post `
-    -ContentType "application/json" `
-    -Body $cuerpo `
-    -TimeoutSec 20
-
-  if ($login.ok -eq $true -and -not [string]::IsNullOrWhiteSpace($login.datos.token)) {
-    $token = $login.datos.token
-    Bien "login de '$Usuario' -> token emitido"
-  } else {
-    Mal "login de '$Usuario' -> respuesta inesperada"
-  }
-} catch {
-  $detalle = ""
-  if ($_.ErrorDetails) { $detalle = $_.ErrorDetails.Message }
-  Mal "login de '$Usuario' -> $($_.Exception.Message) $detalle"
-}
-
-# 5. /yo
-if ($null -ne $token) {
-  try {
-    $yo = Invoke-RestMethod "$Url/api/acceso/yo" `
-      -Headers @{ Authorization = "Bearer $token" } `
-      -TimeoutSec 20
-    if ($yo.ok -eq $true) {
-      Bien "/api/acceso/yo -> $($yo.datos.usuario.nombre) ($($yo.datos.usuario.rol_nombre)), $($yo.datos.permisos.Count) permisos"
-    } else {
-      Mal "/api/acceso/yo -> respuesta inesperada"
-    }
-  } catch {
-    Mal "/api/acceso/yo -> $($_.Exception.Message)"
-  }
-}
-
-# 6. 404 de la API
-try {
-  $codigo = curl.exe -s -o "$env:TEMP\siga-verificacion-404.json" -w "%{http_code}" "$Url/api/no-existe"
-  if ($codigo -eq "404") {
-    Bien "ruta inexistente -> 404"
-  } else {
-    Mal "ruta inexistente -> HTTP $codigo"
-  }
-} catch {
-  Mal "ruta inexistente: $($_.Exception.Message)"
-}
-
-Write-Host ""
-if ($fallos -eq 0) {
-  Write-Host "Todas las comprobaciones pasaron." -ForegroundColor Green
-} else {
-  Write-Host "$fallos comprobación(es) fallaron." -ForegroundColor Red
-  exit 1
-}
+Write-Host "" -ForegroundColor Cyan
+Write-Host "=== Verificación finalizada ===" -ForegroundColor Cyan

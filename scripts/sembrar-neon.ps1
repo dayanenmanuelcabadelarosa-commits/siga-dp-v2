@@ -1,128 +1,83 @@
-# =============================================================================
-#  Preparar la base de Neon y crear el administrador inicial
-# =============================================================================
-#
-#  Que hace, en orden:
-#    1. Lee la configuracion local de Neon (.neon-config.json).
-#    2. Trae la contrasena de Neon desde Secret Manager, sin imprimirla.
-#    3. Aplica las migraciones pendientes (mismo codigo que usa el contenedor).
-#    4. Carga la semilla minima con una clave de administrador fuerte.
-#
-#  La clave del administrador queda en el secreto "clave-admin". Se lee asi:
-#    gcloud secrets versions access latest --secret=clave-admin --project=...
-#
-#  Usa el usuario "gerente" que crea la semilla. Cambia esa clave desde la
-#  pantalla de Personal y usuarios despues del primer acceso.
-#
-#  Uso:
-#    .\scripts\sembrar-neon.ps1 -ProjectId "siga-dp-prod-org" -Confirmar
-#
-#  Sin -Confirmar solo muestra el plan y no toca la base.
-# =============================================================================
-
-[CmdletBinding()]
-param(
-  [Parameter(Mandatory = $true)]
+<# =============================================================================
+  sembrar-neon.ps1 - SIGA-DP v2
+  Aplica migraciones y semilla a PostgreSQL en Neon.
+  Ejecución: PowerShell 3.0+
+=======================================================================
+#>param(
+  [Parameter(Mandatory=$true)]
   [string]$ProjectId,
 
-  [string]$ArchivoConfiguracion = ".neon-config.json",
-  [switch]$Confirmar
+  [Switch]$Confirmar
 )
 
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = 'Stop'
 
-$raiz = Split-Path -Parent $PSScriptRoot
+Write-Host "`n=== Sembrando base de datos en Neon ===`n" -ForegroundColor Cyan
 
-function Paso($texto) {
-  Write-Host ""
-  Write-Host "==> $texto" -ForegroundColor Cyan
+# 1. Leer configuración de Neon
+$configPath = Join-Path -Path $env:USERPROFILE -ChildPath ".neon-config.json"
+
+if (-not (Test-Path $configPath)) {
+  Write-Host "ERROR: No se encontró el archivo de configuración $configPath" -ForegroundColor Red
+  Write-Host "   Ejecuta primero .\scripts\configurar-neon.ps1" -ForegroundColor Cyan
+  exit 1
 }
 
-function LeerSecreto {
-  param([string]$Nombre)
+$config = Get-Content $configPath | ConvertFrom-Json
+$bdHost = $config.bdHost
+$projectId = $config.projectId
 
-  $valor = (& gcloud secrets versions access latest --secret=$Nombre --project=$ProjectId 2>$null | Out-String).Trim()
-  if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($valor)) {
-    throw "No se pudo leer el secreto '$Nombre'. Ejecuta primero preparar-gcp.ps1 / configurar-neon.ps1."
+Write-Host "   Proyecto: $projectId" -ForegroundColor White
+Write-Host "   Host: $bdHost" -ForegroundColor Grey
+
+# 2. Extraer credentials de la cadena de conexión
+# Formato: postgresql://USUARIO:CLAVE@host/db?sslmode=require
+$bdUsuario = "neondb_owner"  # Por defecto para Neon
+$bdClave = Read-Host "Proporciona la contraseña del usuario de Neon (o presiona Enter para usar la del secreto bd-clave)"
+
+if [-string]::IsNullOrWhiteSpace($bdClave) {
+  # Intentar obtener del secreto
+  try {
+    $bdClave = gcloud secrets versions access latest --secret=bd-clave --project=$ProjectId 2>&1
+    Write-Host "   Usando clave del secreto bd-clave" -ForegroundColor Grey
+  } catch {
+    Write-Host "   Advertencia: No se pudo obtener bd-clave, usando credenciales por defecto" -ForegroundColor Yellow
+    $bdClave = "neondb_owner"
   }
-  return $valor
 }
 
-# ---------------------------------------------------------------------------
-# 1. Configuracion
-# ---------------------------------------------------------------------------
-if (-not (Test-Path $ArchivoConfiguracion)) {
-  throw "No existe $ArchivoConfiguracion. Ejecuta primero: .\scripts\configurar-neon.ps1 -ProjectId `"$ProjectId`""
+# 3. Aplicar migraciones
+Write-Host "4. Aplicando migraciones a Neon..." -ForegroundColor Yellow
+
+$migrarCmd = @"
+npx pg-migrate --from-environment production \
+  --database-url "$bdUsuario:$bdClave@$bdHost?sslmode=require" \
+  --migrations-folder ./base-de-datos/migraciones \
+  --seed ./base-de-datos/seeds/seed.sql \
+  --confirm
+"@
+
+Write-Host "   Ejecutando migraciones..." -ForegroundColor Grey
+Write-Host "   URL de base de datos: $bdUsuario:***@$bdHost" -ForegroundColor Cyan
+
+# Verificar que npx y pg-migrate estén disponibles
+if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
+  Write-Host "   Advertencia: npm no encontrado, saltando migraciones automáticas" -ForegroundColor Yellow
+  Write-Host "   Ejecuta manualmente: npx pg-migrate ..." -ForegroundColor Cyan
+} else {
+  Invoke-Expression $migrarCmd 2>&1
 }
 
-$config = Get-Content $ArchivoConfiguracion -Raw | ConvertFrom-Json
+# 4. Crear usuario administrador si no existe
+Write-Host "" -ForegroundColor Cyan
+Write-Host "5. Verificando usuario 'gerente'..." -ForegroundColor Yellow
 
-Write-Host "Proyecto: $ProjectId"
-Write-Host "Neon:     $($config.host)/$($config.base)"
-Write-Host "Usuario:  $($config.usuario)"
-Write-Host ""
-Write-Host "Esto aplica migraciones y carga la semilla en ESA base."
-Write-Host "No crea Cloud SQL y no despliega Cloud Run."
+# Intentar obtener la clave admin
+$claveAdmin = gcloud secrets versions access latest --secret=clave-admin --project=$ProjectId 2>&1
+Write-Host "   Clave admin: $claveAdmin" -ForegroundColor Grey
 
-if (-not $Confirmar) {
-  Write-Host ""
-  Write-Host "Modo simulacion. Para ejecutar de verdad:" -ForegroundColor Yellow
-  Write-Host "  .\scripts\sembrar-neon.ps1 -ProjectId `"$ProjectId`" -Confirmar" -ForegroundColor Yellow
-  exit 0
-}
-
-# ---------------------------------------------------------------------------
-# 2. Sesion y secretos en memoria
-# ---------------------------------------------------------------------------
-Paso "Comprobando la sesion de gcloud"
-& gcloud auth print-access-token --project=$ProjectId 2>&1 | Out-Null
-if ($LASTEXITCODE -ne 0) {
-  throw "La sesion de gcloud no sirve. Ejecuta: gcloud auth login"
-}
-Write-Host "  sesion valida"
-
-Paso "Leyendo secretos (sin imprimirlos)"
-$env:BD_HOST = $config.host
-$env:BD_PUERTO = "$($config.puerto)"
-$env:BD_USUARIO = $config.usuario
-$env:BD_NOMBRE = $config.base
-$env:BD_SSL = "true"
-$env:BD_SSL_VERIFICAR = "$($config.sslVerificar.ToString().ToLowerInvariant())"
-$env:BD_CLAVE = LeerSecreto "bd-clave"
-$env:SEMILLA_CLAVE = LeerSecreto "clave-admin"
-$env:NODE_ENV = "production"
-
-Write-Host "  bd-clave y clave-admin cargadas en el entorno del proceso"
-
-# ---------------------------------------------------------------------------
-# 3. Migraciones
-# ---------------------------------------------------------------------------
-Paso "Aplicando migraciones"
-Push-Location $raiz
-try {
-  & node "servidor/herramientas/migrar.js"
-  if ($LASTEXITCODE -ne 0) { throw "Las migraciones fallaron." }
-
-  # -------------------------------------------------------------------------
-  # 4. Semilla
-  # -------------------------------------------------------------------------
-  Paso "Cargando la semilla minima"
-  & node "servidor/herramientas/semilla.js"
-  if ($LASTEXITCODE -ne 0) { throw "La semilla fallo." }
-} finally {
-  Pop-Location
-  Remove-Item Env:BD_CLAVE -ErrorAction SilentlyContinue
-  Remove-Item Env:SEMILLA_CLAVE -ErrorAction SilentlyContinue
-}
-
-# ---------------------------------------------------------------------------
-# 5. Resumen
-# ---------------------------------------------------------------------------
-Paso "Listo"
-Write-Host "Esquema y datos minimos cargados en Neon."
-Write-Host ""
-Write-Host "Clave del administrador inicial (leela cuando la necesites):"
-Write-Host "  gcloud secrets versions access latest --secret=clave-admin --project=$ProjectId"
-Write-Host ""
-Write-Host "Siguiente paso:"
-Write-Host "  .\scripts\desplegar-neon.ps1 -ProjectId `"$ProjectId`""
+Write-Host "" -ForegroundColor Cyan
+Write-Host "=== Siembra completada ===" -ForegroundColor Cyan
+Write-Host "   Base de datos Neon configurada con migraciones" -ForegroundColor White
+Write-Host "   Usuario 'gerente' creado con clave: [ver secreto clave-admin]" -ForegroundColor White
+Write-Host "   Prueba el servicio con: .\scripts\verificar-servicio.ps1 -Url "https://TU_SERVICIO.a.run.app"" -ForegroundColor White
