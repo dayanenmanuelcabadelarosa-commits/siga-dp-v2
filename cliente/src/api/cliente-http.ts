@@ -27,7 +27,7 @@ import type { RespuestaApi } from "./tipos";
 import { leerSesionCruda, limpiarSesion, sesionVencida } from "../sesion/almacen";
 
 /** Cuánto se espera una respuesta antes de darla por perdida. */
-const TIEMPO_MAXIMO_MS = 15_000;
+const TIEMPO_MAXIMO_MS = 45_000;
 
 type OyenteDeExpiracion = () => void;
 
@@ -142,7 +142,7 @@ async function respuestaDeLaApi(
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
       throw new ErrorDeApi(
-        "El servidor tardó demasiado en responder. Revisa tu conexión e inténtalo otra vez.",
+        "El servidor está despertando (arranque en frío). Dale unos segundos y vuelve a intentarlo.",
         "TIEMPO_AGOTADO",
       );
     }
@@ -150,7 +150,7 @@ async function respuestaDeLaApi(
     // `fetch` solo falla así cuando no hubo respuesta: servidor apagado, sin
     // red, dirección equivocada. El "Failed to fetch" no se le muestra a nadie.
     throw new ErrorDeApi(
-      "No se pudo contactar con el servidor. Revisa que esté encendido y tu conexión.",
+      "No se pudo contactar con el servidor. Si está arrancando en frío, dale unos segundos y vuelve a intentarlo.",
       "SIN_CONEXION",
     );
   } finally {
