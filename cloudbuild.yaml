@@ -27,7 +27,7 @@ substitutions:
   _REPO: siga-dp
   _SERVICE: siga-dp
   _IMAGE: siga-dp
-  _CLOUDSQL_INSTANCE: $PROJECT_ID:us-central1:siga-dp-db
+  _CLOUDSQL_INSTANCE: siga-dp-dev:us-central1:siga-dp-db
   _DB_USER: postgres
   _DB_NAME: siga_dp_v2
   _RUN_SA: siga-dp-run@$PROJECT_ID.iam.gserviceaccount.com
