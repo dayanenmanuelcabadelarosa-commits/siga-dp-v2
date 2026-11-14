@@ -41,8 +41,10 @@ barra lateral oscura y tarjetas de módulo.
 La guía completa está en [`docs/DESPLIEGUE-GCP.md`](docs/DESPLIEGUE-GCP.md).
 Resumen:
 
-- La app se despliega como **un solo servicio** en Cloud Run: Express sirve la
-  API y el cliente React compilado.
+- La app se despliega como **dos servicios** en Cloud Run:
+  `siga-dp-web` (frontend React servido por nginx) y
+  `siga-dp-api` (backend Express). El frontend llama a la API con
+  `VITE_API_URL` fijada en el momento del build.
 - Cloud Run se configura con `min-instances=0` y `max-instances=2`.
 - La base de datos puede ser **Cloud SQL** (≈ USD 10-12/mes, cobra aunque esté
   inactiva) o **Neon Free** (≈ USD 0, con cold start de 1-5 s).
@@ -56,16 +58,17 @@ Resumen:
 - Si el remoto actual no responde, `crear-repo-github.ps1` crea un repositorio
   nuevo y sube el historial.
 
-Ruta rápida con Neon (0 USD/mes):
+CI con GitHub + Cloud Build:
 
-```powershell
-gcloud auth login
-.\scripts\preparar-gcp.ps1 -ProjectId "TU_PROYECTO" -SinCloudSql -Ejecutar
-# Crear el proyecto en https://console.neon.tech y copiar la cadena directa
-.\scripts\configurar-neon.ps1 -ProjectId "TU_PROYECTO"
-.\scripts\sembrar-neon.ps1 -ProjectId "TU_PROYECTO" -Confirmar
-.\scripts\desplegar-neon.ps1 -ProjectId "TU_PROYECTO"
-```
+- Un disparador de Cloud Build (`siga-dp-push`, webhook sobre la rama `main`)
+  construye y despliega los dos servicios en cada push:
+  `cloudbuild.yaml` construye `siga-dp-api`, la despliega, lee su URL pública,
+  construye `siga-dp-web` con `VITE_API_URL` apuntando a esa URL y despliega el
+  frontend; al final fija `ORIGENES` del backend con la URL del frontend (CORS).
+- El webhook del lado de GitHub vive en el repositorio (evento `push`,
+  verificación por HMAC con el secreto `github-webhook-secret`).
+- Para Cloud SQL (un solo servicio, alternativa histórica):
+  `cloudbuild-cloudsql.yaml`.
 
 > Antes de desplegar, lee `docs/ROTACION-DE-SECRETOS.md`. En el historial de Git
 > quedaron credenciales antiguas que deben rotarse.
