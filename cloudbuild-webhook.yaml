@@ -26,6 +26,7 @@ substitutions:
   _BD_SSL: "true"
   _BD_SSL_VERIFICAR: "true"
   _RUN_SA: siga-dp-run@siga-dp-dev.iam.gserviceaccount.com
+  _ORIGENES: "https://siga-dp-web-cmwr7ezlla-uc.a.run.app,https://siga-dp-web-26705455029.us-central1.run.app"
   _MIN_INSTANCES: "1"
   _MIN_INSTANCES_FRONTEND: "1"
   _MAX_INSTANCES: "2"
@@ -86,28 +87,47 @@ steps:
   # ---------------------------------------------------------------------------
   - id: desplegar-backend
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
-    entrypoint: gcloud
+    entrypoint: bash
     args:
-      - run
-      - deploy
-      - ${_SERVICE_BACKEND}
-      - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE_BACKEND}:$BUILD_ID
-      - --region=${_REGION}
-      - --platform=managed
-      - --allow-unauthenticated
-      - --port=8080
-      - --set-env-vars=NODE_ENV=production,PUERTO=8080,BD_HOST=${_BD_HOST},BD_PUERTO=${_BD_PUERTO},BD_USUARIO=${_BD_USUARIO},BD_NOMBRE=${_BD_NOMBRE},BD_SSL=${_BD_SSL},BD_SSL_VERIFICAR=${_BD_SSL_VERIFICAR},BD_MAX_CONEXIONES=5,BD_TIEMPO_CONEXION_MS=10000,BD_TIEMPO_SENTENCIA_MS=30000,PAYPAL_ENTORNO=sandbox,PAYPAL_MONEDA=USD,IMECF_API_URL=https://ecf-platform-backend-50801509587.us-central1.run.app,GROQ_MODEL=openai/gpt-oss-120b
-      - --set-secrets=BD_CLAVE=bd-clave:latest,CLAVE_SESION=clave-sesion:latest,PAYPAL_CLIENT_ID=paypal-client-id:latest,PAYPAL_CLIENT_SECRET=paypal-client-secret:latest,PAYPAL_WEBHOOK_ID=paypal-webhook-id:latest,IMECF_API_KEY=imecf-api-key:latest,GROQ_API_KEY=groq-api-key:latest
-      - --min-instances=${_MIN_INSTANCES}
-      - --max-instances=${_MAX_INSTANCES}
-      - --concurrency=${_CONCURRENCY}
-      - --cpu=${_CPU}
-      - --memory=${_MEMORY}
-      - --timeout=${_TIMEOUT}
-      - --cpu-throttling
-      - --service-account=${_RUN_SA}
-      - --labels=app=siga-dp,rol=back,managed-by=cloud-build
-      - --quiet
+      - -c
+      - |
+        set -euo pipefail
+        printf '%s\n' \
+          'NODE_ENV: production' \
+          'PUERTO: "8080"' \
+          "BD_HOST: ${_BD_HOST}" \
+          "BD_PUERTO: ${_BD_PUERTO}" \
+          "BD_USUARIO: ${_BD_USUARIO}" \
+          "BD_NOMBRE: ${_BD_NOMBRE}" \
+          "BD_SSL: ${_BD_SSL}" \
+          "BD_SSL_VERIFICAR: ${_BD_SSL_VERIFICAR}" \
+          'BD_MAX_CONEXIONES: "5"' \
+          'BD_TIEMPO_CONEXION_MS: "10000"' \
+          'BD_TIEMPO_SENTENCIA_MS: "30000"' \
+          'PAYPAL_ENTORNO: sandbox' \
+          'PAYPAL_MONEDA: USD' \
+          'IMECF_API_URL: https://ecf-platform-backend-50801509587.us-central1.run.app' \
+          'GROQ_MODEL: openai/gpt-oss-120b' \
+          "ORIGENES: \"${_ORIGENES}\"" \
+          > /workspace/backend_env.yaml
+        gcloud run deploy ${_SERVICE_BACKEND} \
+          --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE_BACKEND}:$BUILD_ID \
+          --region=${_REGION} \
+          --platform=managed \
+          --allow-unauthenticated \
+          --port=8080 \
+          --env-vars-file=/workspace/backend_env.yaml \
+          --set-secrets=BD_CLAVE=bd-clave:latest,CLAVE_SESION=clave-sesion:latest,PAYPAL_CLIENT_ID=paypal-client-id:latest,PAYPAL_CLIENT_SECRET=paypal-client-secret:latest,PAYPAL_WEBHOOK_ID=paypal-webhook-id:latest,IMECF_API_KEY=imecf-api-key:latest,GROQ_API_KEY=groq-api-key:latest \
+          --min-instances=${_MIN_INSTANCES} \
+          --max-instances=${_MAX_INSTANCES} \
+          --concurrency=${_CONCURRENCY} \
+          --cpu=${_CPU} \
+          --memory=${_MEMORY} \
+          --timeout=${_TIMEOUT} \
+          --cpu-throttling \
+          --service-account=${_RUN_SA} \
+          --labels=app=siga-dp,rol=back,managed-by=cloud-build \
+          --quiet
 
   # ---------------------------------------------------------------------------
   # 4. Anotar la URL pública del backend en /workspace.
@@ -173,27 +193,5 @@ steps:
       - --service-account=${_RUN_SA}
       - --labels=app=siga-dp,rol=front,managed-by=cloud-build
       - --quiet
-
-  # ---------------------------------------------------------------------------
-  # 7. CORS: ORIGENES del backend = URL pública del frontend.
-  # ---------------------------------------------------------------------------
-  - id: fijar-origenes
-    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
-    entrypoint: bash
-    args:
-      - -c
-      - |
-        set -euo pipefail
-        URL="$$(gcloud run services describe ${_SERVICE_FRONTEND} \
-          --region=${_REGION} --format='value(status.url)')"
-        if [ -z "$$URL" ]; then
-          echo "No se pudo leer la URL del frontend." >&2
-          exit 1
-        fi
-        echo "URL del frontend: $$URL"
-        gcloud run services update ${_SERVICE_BACKEND} \
-          --region=${_REGION} \
-          --update-env-vars=ORIGENES="$$URL" \
-          --quiet
 
 timeout: 2400s
