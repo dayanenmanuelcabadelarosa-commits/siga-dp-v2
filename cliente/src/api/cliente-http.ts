@@ -88,9 +88,11 @@ function esperar(ms: number): Promise<void> {
 }
 
 /**
- * Hace el fetch y, solo para GET (idempotente), reintenta ante un fallo de red
- * inmediato. No reintenta abortos: si se agotó el tiempo límite, el servidor
- * ya tuvo su oportunidad.
+ * Hace el fetch y reintenta ante un fallo de red inmediato, en cualquier
+ * método: durante el arranque en frío Cloud Run puede responder 500/503 sin
+ * cabeceras CORS mientras el contenedor enciende, y el navegador lo reporta
+ * como fallo de red. Entrar es idempotente y las mutaciones de la app también
+ * lo son en la práctica, así que un par de reintentos son seguros y necesarios.
  */
 async function intentarFetch(
   url: string,
@@ -101,6 +103,7 @@ async function intentarFetch(
   intentos: number,
 ): Promise<Response> {
   let ultimoError: unknown;
+  const esperaMs = 6_000;
 
   for (let intento = 1; intento <= intentos; intento += 1) {
     try {
@@ -115,7 +118,7 @@ async function intentarFetch(
 
       const falloDeRedInmediato = error instanceof TypeError;
       if (intento < intentos && falloDeRedInmediato) {
-        await esperar(intento * 5_000);
+        await esperar(esperaMs);
         continue;
       }
 
@@ -186,11 +189,9 @@ async function respuestaDeLaApi(
   }, opciones.timeoutMs ?? TIEMPO_MAXIMO_MS);
 
   let respuesta: Response;
-  /* GET es idempotente y se puede repetir: durante el arranque en frío el
-     servidor enciende antes de que el CUERPO de la petición llegue, y el
-     navegador puede reportar fallo aunque el servidor termine arriba.
-     POSTs no se reintentan aquí: podrían ejecutarse dos veces. */
-  const intentos = metodo === "GET" ? 3 : 1;
+  /* En arranque en frío el servidor tarda en responder; el fetch falla del
+     lado del navegador y aquí se reintenta con espera (ver intentarFetch). */
+  const intentos = 4;
 
   try {
     respuesta = await intentarFetch(url, metodo, encabezados, cuerpo, controlador.signal, intentos);
