@@ -110,6 +110,19 @@ if (fs.existsSync(carpetaCliente)) {
   });
 }
 
+// La raíz no es de esta API: quien abra "/" es enviado a la aplicación web
+// (el primer origen permitido en ORIGENES = la URL pública del frontend).
+  app.get("/", (req, res) => {
+    const destino = origenes[0];
+
+    if (destino !== undefined && /^https?:\/\//i.test(destino)) {
+      res.redirect(destino);
+      return;
+    }
+
+    res.redirect("/api/salud");
+  });
+
 // Ruta que no existe.
   app.use((req, res) => {
     res.status(404).json({

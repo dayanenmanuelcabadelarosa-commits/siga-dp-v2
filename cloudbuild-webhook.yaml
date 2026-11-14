@@ -26,7 +26,7 @@ substitutions:
   _BD_SSL: "true"
   _BD_SSL_VERIFICAR: "true"
   _RUN_SA: siga-dp-run@siga-dp-dev.iam.gserviceaccount.com
-  _MIN_INSTANCES: "1"
+  _MIN_INSTANCES: "0"
   _MIN_INSTANCES_FRONTEND: "0"
   _MAX_INSTANCES: "2"
   _CONCURRENCY: "80"
