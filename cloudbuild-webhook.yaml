@@ -1,0 +1,198 @@
+﻿# =============================================================================
+#  Cloud Build — SIGA-DP v2 por WEBHOOK (config inline del disparador)
+# =============================================================================
+#
+#  Copia de cloudbuild.yaml con un paso más al principio: el disparador por
+#  webhook no trae el código fuente, así que el build lo clona aquí. El
+#  disparador de GitHub usa este archivo (inline); las compilaciones manuales
+#  usan cloudbuild.yaml. Mantén ambas sincronizadas.
+#
+#  Si el disparador siempre clona main, las pushes a otras ramas construyen
+#  igualmente el main de ese momento. Para este repositorio (una sola rama)
+#  es aceptable; si algún día hay varias ramas, añade un filtro al disparador.
+# =============================================================================
+
+substitutions:
+  _REGION: us-central1
+  _REPO: siga-dp
+  _SERVICE_BACKEND: siga-dp-api
+  _SERVICE_FRONTEND: siga-dp-web
+  _IMAGE_BACKEND: siga-dp-api
+  _IMAGE_FRONTEND: siga-dp-web
+  _BD_HOST: ep-aged-tooth-bd8t447s.c-8.us-east-2.aws.neon.tech
+  _BD_PUERTO: "5432"
+  _BD_USUARIO: neondb_owner
+  _BD_NOMBRE: neondb
+  _BD_SSL: "true"
+  _BD_SSL_VERIFICAR: "true"
+  _RUN_SA: siga-dp-run@siga-dp-dev.iam.gserviceaccount.com
+  _MIN_INSTANCES: "0"
+  _MAX_INSTANCES: "2"
+  _CONCURRENCY: "80"
+  _CPU: "1"
+  _MEMORY: 512Mi
+  _MEMORY_FRONTEND: 256Mi
+  _TIMEOUT: "300"
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+steps:
+  # ---------------------------------------------------------------------------
+  # 0. Clonar el repositorio (el webhook no trae el código).
+  # ---------------------------------------------------------------------------
+  - id: clonar
+    name: gcr.io/cloud-builders/git
+    args:
+      - clone
+      - --depth=1
+      - --branch=main
+      - https://github.com/dayanenmanuelcabadelarosa-commits/siga-dp-v2
+      - .
+
+  # ---------------------------------------------------------------------------
+  # 1. Backend: construir la imagen.
+  # ---------------------------------------------------------------------------
+  - id: construir-backend
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - servidor/Dockerfile
+      - --tag
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE_BACKEND}:$BUILD_ID
+      - --tag
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE_BACKEND}:latest
+      - .
+
+  # ---------------------------------------------------------------------------
+  # 2. Backend: publicar las dos etiquetas.
+  # ---------------------------------------------------------------------------
+  - id: publicar-backend-sha
+    name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE_BACKEND}:$BUILD_ID
+
+  - id: publicar-backend-latest
+    name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE_BACKEND}:latest
+
+  # ---------------------------------------------------------------------------
+  # 3. Backend: desplegar en Cloud Run.
+  # ---------------------------------------------------------------------------
+  - id: desplegar-backend
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_SERVICE_BACKEND}
+      - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE_BACKEND}:$BUILD_ID
+      - --region=${_REGION}
+      - --platform=managed
+      - --allow-unauthenticated
+      - --port=8080
+      - --set-env-vars=NODE_ENV=production,PUERTO=8080,BD_HOST=${_BD_HOST},BD_PUERTO=${_BD_PUERTO},BD_USUARIO=${_BD_USUARIO},BD_NOMBRE=${_BD_NOMBRE},BD_SSL=${_BD_SSL},BD_SSL_VERIFICAR=${_BD_SSL_VERIFICAR},BD_MAX_CONEXIONES=5,BD_TIEMPO_CONEXION_MS=10000,BD_TIEMPO_SENTENCIA_MS=30000,PAYPAL_ENTORNO=sandbox,PAYPAL_MONEDA=USD,IMECF_API_URL=https://ecf-platform-backend-50801509587.us-central1.run.app,GROQ_MODEL=openai/gpt-oss-120b
+      - --set-secrets=BD_CLAVE=bd-clave:latest,CLAVE_SESION=clave-sesion:latest,PAYPAL_CLIENT_ID=paypal-client-id:latest,PAYPAL_CLIENT_SECRET=paypal-client-secret:latest,PAYPAL_WEBHOOK_ID=paypal-webhook-id:latest,IMECF_API_KEY=imecf-api-key:latest,GROQ_API_KEY=groq-api-key:latest
+      - --min-instances=${_MIN_INSTANCES}
+      - --max-instances=${_MAX_INSTANCES}
+      - --concurrency=${_CONCURRENCY}
+      - --cpu=${_CPU}
+      - --memory=${_MEMORY}
+      - --timeout=${_TIMEOUT}
+      - --cpu-throttling
+      - --service-account=${_RUN_SA}
+      - --labels=app=siga-dp,rol=back,managed-by=cloud-build
+      - --quiet
+
+  # ---------------------------------------------------------------------------
+  # 4. Anotar la URL pública del backend en /workspace.
+  # ---------------------------------------------------------------------------
+  - id: url-backend
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        URL="$$(gcloud run services describe ${_SERVICE_BACKEND} \
+          --region=${_REGION} --format='value(status.url)')"
+        if [ -z "$$URL" ]; then
+          echo "No se pudo leer la URL del backend." >&2
+          exit 1
+        fi
+        echo "URL del backend: $$URL"
+        printf '%s' "$$URL" > /workspace/url_backend.txt
+
+  # ---------------------------------------------------------------------------
+  # 5. Frontend: construir y publicar con VITE_API_URL = URL del backend.
+  # ---------------------------------------------------------------------------
+  - id: construir-y-publicar-frontend
+    name: gcr.io/cloud-builders/docker
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        API_URL="$$(cat /workspace/url_backend.txt)"
+        echo "VITE_API_URL=$$API_URL"
+        docker build \
+          --build-arg VITE_API_URL="$$API_URL" \
+          -f cliente/Dockerfile \
+          --tag ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE_FRONTEND}:$BUILD_ID \
+          --tag ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE_FRONTEND}:latest \
+          .
+        docker push ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE_FRONTEND}:$BUILD_ID
+        docker push ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE_FRONTEND}:latest
+
+  # ---------------------------------------------------------------------------
+  # 6. Frontend: desplegar en Cloud Run.
+  # ---------------------------------------------------------------------------
+  - id: desplegar-frontend
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_SERVICE_FRONTEND}
+      - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE_FRONTEND}:$BUILD_ID
+      - --region=${_REGION}
+      - --platform=managed
+      - --allow-unauthenticated
+      - --port=8080
+      - --min-instances=${_MIN_INSTANCES}
+      - --max-instances=${_MAX_INSTANCES}
+      - --concurrency=${_CONCURRENCY}
+      - --cpu=${_CPU}
+      - --memory=${_MEMORY_FRONTEND}
+      - --timeout=${_TIMEOUT}
+      - --cpu-throttling
+      - --service-account=${_RUN_SA}
+      - --labels=app=siga-dp,rol=front,managed-by=cloud-build
+      - --quiet
+
+  # ---------------------------------------------------------------------------
+  # 7. CORS: ORIGENES del backend = URL pública del frontend.
+  # ---------------------------------------------------------------------------
+  - id: fijar-origenes
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        URL="$$(gcloud run services describe ${_SERVICE_FRONTEND} \
+          --region=${_REGION} --format='value(status.url)')"
+        if [ -z "$$URL" ]; then
+          echo "No se pudo leer la URL del frontend." >&2
+          exit 1
+        fi
+        echo "URL del frontend: $$URL"
+        gcloud run services update ${_SERVICE_BACKEND} \
+          --region=${_REGION} \
+          --update-env-vars=ORIGENES="$$URL" \
+          --quiet
+
+timeout: 2400s
