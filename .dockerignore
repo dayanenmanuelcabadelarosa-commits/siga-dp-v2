@@ -1,13 +1,33 @@
+# Dependencias y compilados locales: se reconstruyen dentro de la imagen.
 node_modules
-cliente/node_modules
-servidor/node_modules
+**/node_modules
 cliente/dist
+
+# Secretos y configuración local: NUNCA entran en la imagen.
 **/.env
-**/.env.*.local
+**/.env.*
+**/*.pem
+**/*.key
+**/*-sa.json
+**/service-account*.json
+
+# Registros y archivos de herramientas.
+**/*.log
 *.log
+
+# Repositorio, CI, editor y documentación.
 .git
+.gitignore
+.github
 .vscode
 e2e
 docs
+scripts
 *.md
-"
+**/*.md
+
+# Pruebas y utilidades que no se ejecutan en producción.
+servidor/pruebas
+cliente/pruebas
+cargar-demo.mjs
+servidor/herramientas/datos-de-demostracion.js

@@ -36,6 +36,40 @@ barra lateral oscura y tarjetas de módulo.
 
 ---
 
+## 1.5 Despliegue en Google Cloud
+
+La guía completa está en [`docs/DESPLIEGUE-GCP.md`](docs/DESPLIEGUE-GCP.md).
+Resumen:
+
+- La app se despliega como **un solo servicio** en Cloud Run: Express sirve la
+  API y el cliente React compilado.
+- Cloud Run se configura con `min-instances=0` y `max-instances=2`.
+- La base de datos puede ser **Cloud SQL** (≈ USD 10-12/mes, cobra aunque esté
+  inactiva) o **Neon Free** (≈ USD 0, con cold start de 1-5 s).
+  Con presupuesto ajustado, usa Neon: es la ruta recomendada.
+- Los secretos viven en **Secret Manager**; no hay contraseñas en la imagen ni
+  en el repositorio.
+- Los scripts de PowerShell están en `scripts/`:
+  `preparar-gcp.ps1 -SinCloudSql`, `configurar-neon.ps1`, `sembrar-neon.ps1`,
+  `desplegar-neon.ps1`, `verificar-servicio.ps1`.
+  Para Cloud SQL: `crear-cloudsql.ps1` y `desplegar.ps1`.
+- Si el remoto actual no responde, `crear-repo-github.ps1` crea un repositorio
+  nuevo y sube el historial.
+
+Ruta rápida con Neon (0 USD/mes):
+
+```powershell
+gcloud auth login
+.\scripts\preparar-gcp.ps1 -ProjectId "TU_PROYECTO" -SinCloudSql -Ejecutar
+# Crear el proyecto en https://console.neon.tech y copiar la cadena directa
+.\scripts\configurar-neon.ps1 -ProjectId "TU_PROYECTO"
+.\scripts\sembrar-neon.ps1 -ProjectId "TU_PROYECTO" -Confirmar
+.\scripts\desplegar-neon.ps1 -ProjectId "TU_PROYECTO"
+```
+
+> Antes de desplegar, lee `docs/ROTACION-DE-SECRETOS.md`. En el historial de Git
+> quedaron credenciales antiguas que deben rotarse.
+
 ## 2. Arrancar desde cero en otra computadora
 
 ### Requisitos

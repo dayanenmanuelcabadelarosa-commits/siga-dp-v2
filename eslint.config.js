@@ -52,7 +52,12 @@ export default tseslint.config(
     descuido: es la salida del programa.
   */
   {
-    files: ["servidor/herramientas/**/*.js"],
+    files: ["servidor/herramientas/**/*.js", "cargar-demo.mjs"],
+    languageOptions: {
+      ecmaVersion: "latest",
+      sourceType: "module",
+      globals: { ...globals.node },
+    },
     rules: {
       "no-console": "off",
     },

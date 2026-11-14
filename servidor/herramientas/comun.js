@@ -17,6 +17,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import dotenv from "dotenv";
 
+import { configuracionBd } from "../src/db/configuracion.js";
+
 const aqui = path.dirname(fileURLToPath(import.meta.url));
 
 export const raizServidor = path.resolve(aqui, "..");
@@ -49,19 +51,9 @@ export function nombreBaseDePrueba() {
  * (por ejemplo a "postgres", que siempre existe, para poder crear las demás).
  */
 export function datosConexion(base) {
-  const host = process.env.BD_HOST || "localhost";
-  const esRender = typeof host === "string" && host.endsWith(".render.com");
-  const datos = {
-    host,
-    user: process.env.BD_USUARIO || "postgres",
-    password: process.env.BD_CLAVE || "",
-    database: base,
-    ...(esRender ? { ssl: { rejectUnauthorized: false } } : {}),
-  };
-  if (!host.startsWith("/")) {
-    datos.port = Number(process.env.BD_PUERTO || 5432);
-  }
-  return datos;
+  // La misma configuración que usa la aplicación: socket Unix de Cloud SQL,
+  // TLS para proveedores externos y ningún secreto escrito aquí.
+  return configuracionBd({ database: base });
 }
 
 /**

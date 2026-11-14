@@ -1,77 +1,134 @@
-# Configuracion de Cloud Build para SIGA-DP v2.
-# Construye la imagen, la sube a Artifact Registry y despliega en Cloud Run.
+# =============================================================================
+#  Cloud Build �� SIGA-DP v2 con Cloud SQL (PostgreSQL)
+# =============================================================================
+#
+#  Qué hace:
+#    1. Construye la imagen Docker.
+#    2. La publica en Artifact Registry (SHA del commit y latest).
+#    3. Despliega en Cloud Run con 0 instancias mínimas y máximo 2.
+#    4. Ajusta ORIGENES a la URL pública real del servicio (CORS).
+#
+#  Antes de ejecutarlo deben existir:
+#    �� El repositorio de Artifact Registry (_REPO).
+#    �� La instancia de Cloud SQL y la base de datos.
+#    �� Los secretos en Secret Manager (ver docs/DESPLIEGUE-GCP.md).
+#    �� La cuenta de servicio de ejecución (_RUN_SA) con Cloud SQL Client y
+#      Secret Manager Secret Accessor.
+#
+#  Uso manual desde PowerShell:
+#    gcloud builds submit --config=cloudbuild.yaml `
+#      --substitutions=_REGION=us-central1,_CLOUDSQL_INSTANCE=PROYECTO:us-central1:siga-dp-db
+#
+#  No hay contraseñas en este archivo: todo secreto llega por Secret Manager.
+# =============================================================================
 
 substitutions:
   _REGION: us-central1
   _REPO: siga-dp
   _SERVICE: siga-dp
   _IMAGE: siga-dp
-  _CLOUDSQL_INSTANCE: PROJECT_ID:us-central1:siga-dp-db
+  _CLOUDSQL_INSTANCE: $PROJECT_ID:us-central1:siga-dp-db
+  _DB_USER: postgres
+  _DB_NAME: siga_dp_v2
+  _RUN_SA: siga-dp-run@$PROJECT_ID.iam.gserviceaccount.com
+  _MIN_INSTANCES: "0"
+  _MAX_INSTANCES: "2"
+  _CONCURRENCY: "80"
+  _CPU: "1"
+  _MEMORY: 512Mi
+  _TIMEOUT: "300"
+
+options:
+  # Los registros van a Cloud Logging; no se crea un bucket de Cloud Storage.
+  logging: CLOUD_LOGGING_ONLY
 
 steps:
-  # 1. Construir la imagen Docker.
-  - name: 'gcr.io/cloud-builders/docker'
+  # ---------------------------------------------------------------------------
+  # 1. Construir la imagen.
+  # ---------------------------------------------------------------------------
+  - id: construir
+    name: gcr.io/cloud-builders/docker
     args:
-      - 'build'
-      - '-t'
-      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:$COMMIT_SHA'
-      - '-t'
-      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:latest'
-      - '.'
+      - build
+      - --tag
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:$BUILD_ID
+      - --tag
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:latest
+      - .
 
-  # 2. Subir la imagen a Artifact Registry.
-  - name: 'gcr.io/cloud-builders/docker'
+  # ---------------------------------------------------------------------------
+  # 2. Publicar las dos etiquetas. Cloud Build no sube automáticamente una
+  #    imagen usada dentro de un paso, así que se publica antes del despliegue.
+  # ---------------------------------------------------------------------------
+  - id: publicar-sha
+    name: gcr.io/cloud-builders/docker
     args:
-      - 'push'
-      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:$COMMIT_SHA'
+      - push
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:$BUILD_ID
 
-  - name: 'gcr.io/cloud-builders/docker'
+  - id: publicar-latest
+    name: gcr.io/cloud-builders/docker
     args:
-      - 'push'
-      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:latest'
+      - push
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:latest
 
+  # ---------------------------------------------------------------------------
   # 3. Desplegar en Cloud Run.
-  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  #
+  #    --set-env-vars y --set-secrets van una sola vez y con listas separadas
+  #    por comas. Repetir la bandera varias veces puede pisar valores.
+  #
+  #    --cpu-throttling (valor por defecto) factura CPU solo mientras hay
+  #    solicitudes; es lo que permite que una instancia inactiva no consuma CPU.
+  # ---------------------------------------------------------------------------
+  - id: desplegar
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
     entrypoint: gcloud
     args:
-      - 'run'
-      - 'deploy'
-      - '${_SERVICE}'
-      - '--image'
-      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:$COMMIT_SHA'
-      - '--region'
-      - '${_REGION}'
-      - '--platform'
-      - 'managed'
-      - '--allow-unauthenticated'
-      - '--port'
-      - '8080'
-      - '--add-cloudsql-instances'
-      - '${_CLOUDSQL_INSTANCE}'
-      - '--set-env-vars'
-      - 'NODE_ENV=production,PUERTO=8080,BD_HOST=/cloudsql/${_CLOUDSQL_INSTANCE},BD_USUARIO=postgres,BD_NOMBRE=siga_dp_v2'
-      - '--set-secrets'
-      - 'BD_CLAVE=bd-clave:latest'
-      - '--set-secrets'
-      - 'CLAVE_SESION=clave-sesion:latest'
-      - '--set-secrets'
-      - 'PAYPAL_CLIENT_ID=paypal-client-id:latest'
-      - '--set-secrets'
-      - 'PAYPAL_CLIENT_SECRET=paypal-client-secret:latest'
-      - '--set-secrets'
-      - 'IMECF_API_KEY=imecf-api-key:latest'
-      - '--set-secrets'
-      - 'GROQ_API_KEY=groq-api-key:latest'
-      - '--set-env-vars'
-      - 'PAYPAL_ENTORNO=sandbox'
-      - '--set-env-vars'
-      - 'PAYPAL_MONEDA=USD'
-      - '--set-env-vars'
-      - 'IMECF_API_URL=https://ecf-platform-backend-50801509587.us-central1.run.app'
-      - '--set-env-vars'
-      - 'GROQ_MODEL=openai/gpt-oss-120b'
+      - run
+      - deploy
+      - ${_SERVICE}
+      - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:$BUILD_ID
+      - --region=${_REGION}
+      - --platform=managed
+      - --allow-unauthenticated
+      - --port=8080
+      - --add-cloudsql-instances=${_CLOUDSQL_INSTANCE}
+      - --set-env-vars=NODE_ENV=production,PUERTO=8080,BD_HOST=/cloudsql/${_CLOUDSQL_INSTANCE},BD_PUERTO=5432,BD_USUARIO=${_DB_USER},BD_NOMBRE=${_DB_NAME},BD_MAX_CONEXIONES=5,BD_TIEMPO_CONEXION_MS=10000,BD_TIEMPO_SENTENCIA_MS=30000,PAYPAL_ENTORNO=sandbox,PAYPAL_MONEDA=USD,IMECF_API_URL=https://ecf-platform-backend-50801509587.us-central1.run.app,GROQ_MODEL=openai/gpt-oss-120b
+      - --set-secrets=BD_CLAVE=bd-clave:latest,CLAVE_SESION=clave-sesion:latest,PAYPAL_CLIENT_ID=paypal-client-id:latest,PAYPAL_CLIENT_SECRET=paypal-client-secret:latest,PAYPAL_WEBHOOK_ID=paypal-webhook-id:latest,IMECF_API_KEY=imecf-api-key:latest,GROQ_API_KEY=groq-api-key:latest
+      - --min-instances=${_MIN_INSTANCES}
+      - --max-instances=${_MAX_INSTANCES}
+      - --concurrency=${_CONCURRENCY}
+      - --cpu=${_CPU}
+      - --memory=${_MEMORY}
+      - --timeout=${_TIMEOUT}
+      - --cpu-throttling
+      - --service-account=${_RUN_SA}
+      - --labels=app=siga-dp,managed-by=cloud-build
+      - --quiet
 
-images:
-  - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:$COMMIT_SHA'
-  - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:latest'
-"
+  # ---------------------------------------------------------------------------
+  # 4. CORS: la URL de Cloud Run no se conoce hasta el primer despliegue. Este
+  #    paso la lee y la deja en ORIGENES. El cliente se sirve desde el mismo
+  #    origen, así que esto es una precaución para integraciones externas.
+  # ---------------------------------------------------------------------------
+  - id: fijar-origenes
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        URL="$$(gcloud run services describe ${_SERVICE} \
+          --region=${_REGION} --format='value(status.url)')"
+        if [ -z "$$URL" ]; then
+          echo "No se pudo leer la URL del servicio." >&2
+          exit 1
+        fi
+        echo "URL pública: $$URL"
+        gcloud run services update ${_SERVICE} \
+          --region=${_REGION} \
+          --update-env-vars=ORIGENES="$$URL" \
+          --quiet
+
+timeout: 1800s

@@ -104,7 +104,7 @@ export const esquemaEmitirComprobante = z
       .trim()
       .min(1, "El cliente no puede quedar vacío.")
       .max(120, "El cliente no puede pasar de 120 caracteres."),
-    rncCliente: z.string().trim().max(20).regex(/^[\d\s.\-]*$/, "El RNC solo puede contener dígitos.").optional(),
+    rncCliente: z.string().trim().max(20).regex(/^[\d\s.-]*$/, "El RNC solo puede contener dígitos.").optional(),
     forma: z
       .enum(["Efectivo", "Tarjeta", "PayPal", "Crédito"], {
         error: "Elige la forma de pago.",

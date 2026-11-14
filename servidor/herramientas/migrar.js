@@ -29,6 +29,14 @@ import {
   sumaDeArchivo,
 } from "./comun.js";
 
+/*
+  Una llave fija para pg_advisory_lock. Cualquier número sirve mientras sea el
+  mismo en todas las instancias. Con esto, si Cloud Run arranca dos contenedores
+  a la vez, las migraciones se aplican de una en una y la segunda espera; sin el
+  candado, las dos podrían intentar crear la misma tabla y una fallaría.
+*/
+const LLAVE_DE_MIGRACION = 728341905;
+
 const TABLA = `
   CREATE TABLE IF NOT EXISTS migracion (
     nombre      TEXT        PRIMARY KEY,
@@ -50,6 +58,9 @@ export async function migrarBase({ base = nombreBase(), avisar = console.log } =
   await cliente.connect();
 
   try {
+    // Se toma el candado antes de leer o crear la tabla de migraciones.
+    await cliente.query("SELECT pg_advisory_lock($1)", [LLAVE_DE_MIGRACION]);
+
     await cliente.query(TABLA);
     await cliente.query(COMMENT_TABLA);
 
@@ -97,6 +108,12 @@ export async function migrarBase({ base = nombreBase(), avisar = console.log } =
 
     return cuantas;
   } finally {
+    // Se suelta el candado antes de cerrar. Si la conexión ya se cayó, el
+    // servidor lo libera solo; el catch evita que el error de cierre tape el
+    // error original de la migración.
+    await cliente
+      .query("SELECT pg_advisory_unlock($1)", [LLAVE_DE_MIGRACION])
+      .catch(() => {});
     await cliente.end();
   }
 }

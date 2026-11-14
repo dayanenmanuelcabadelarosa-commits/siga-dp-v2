@@ -1,34 +1,79 @@
-# Plantilla de servicio de Cloud Run para SIGA-DP v2.
-# Aplicar con: gcloud run services replace cloudrun-service.yaml --region us-central1
+# =============================================================================
+#  Plantilla de servicio de Cloud Run �� SIGA-DP v2
+# =============================================================================
+#
+#  Aplicar SOLO después de reemplazar los marcadores PROYECTO:
+#
+#    (Get-Content cloudrun-service.yaml) `
+#      -replace 'PROYECTO', 'mi-proyecto-gcp' `
+#      -replace 'https://CAMBIAR-por-la-URL.a.run.app', 'https://...' |
+#      Set-Content cloudrun-service.generado.yaml
+#
+#    gcloud run services replace cloudrun-service.generado.yaml `
+#      --region us-central1
+#
+#  Normalmente no hace falta: cloudbuild.yaml ya despliega con los mismos
+#  valores. Esta plantilla sirve para revisar o recrear el servicio a mano.
+#
+#  Escalado:
+#    minScale 0  �� se apaga cuando no hay tráfico (no cuesta CPU inactiva).
+#    maxScale 2  �� tope de coste y de conexiones a Cloud SQL (5 por instancia).
+#
+#  La base de datos NO se apaga con Cloud Run: Cloud SQL cobra mientras la
+#  instancia existe. Ver docs/DESPLIEGUE-GCP.md.
+# =============================================================================
+
 apiVersion: serving.knative.dev/v1
 kind: Service
 metadata:
   name: siga-dp
+  labels:
+    app: siga-dp
+    managed-by: manual
 spec:
   template:
     metadata:
       annotations:
-        run.googleapis.com/cloudsql-instances: PROJECT_ID:us-central1:siga-dp-db
-        # 0 instancias mínimas: se escala a cero cuando no hay tráfico (ahorra costos)
-        run.googleapis.com/min-instances: "0"
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "2"
+        run.googleapis.com/cloudsql-instances: PROYECTO:us-central1:siga-dp-db
+        run.googleapis.com/cpu-throttling: "true"
+        run.googleapis.com/execution-environment: gen2
     spec:
+      containerConcurrency: 80
+      timeoutSeconds: 300
+      serviceAccountName: siga-dp-run@PROYECTO.iam.gserviceaccount.com
       containers:
-        - image: us-central1-docker.pkg.dev/PROJECT_ID/siga-dp/siga-dp:latest
+        - name: siga-dp
+          image: us-central1-docker.pkg.dev/PROYECTO/siga-dp/siga-dp:latest
           ports:
-            - containerPort: 8080
+            - name: http1
+              containerPort: 8080
+          resources:
+            limits:
+              cpu: "1"
+              memory: 512Mi
           env:
             - name: NODE_ENV
               value: production
             - name: PUERTO
               value: "8080"
             - name: BD_HOST
-              value: /cloudsql/PROJECT_ID:us-central1:siga-dp-db
+              value: /cloudsql/PROYECTO:us-central1:siga-dp-db
+            - name: BD_PUERTO
+              value: "5432"
             - name: BD_USUARIO
               value: postgres
             - name: BD_NOMBRE
               value: siga_dp_v2
+            - name: BD_MAX_CONEXIONES
+              value: "5"
+            - name: BD_TIEMPO_CONEXION_MS
+              value: "10000"
+            - name: BD_TIEMPO_SENTENCIA_MS
+              value: "30000"
             - name: ORIGENES
-              value: https://siga-dp-XXXX-uc.a.run.app
+              value: https://CAMBIAR-por-la-URL.a.run.app
             - name: PAYPAL_ENTORNO
               value: sandbox
             - name: PAYPAL_MONEDA
@@ -37,15 +82,15 @@ spec:
               value: https://ecf-platform-backend-50801509587.us-central1.run.app
             - name: GROQ_MODEL
               value: openai/gpt-oss-120b
-            - name: CLAVE_SESION
-              valueFrom:
-                secretKeyRef:
-                  name: clave-sesion
-                  key: latest
             - name: BD_CLAVE
               valueFrom:
                 secretKeyRef:
                   name: bd-clave
+                  key: latest
+            - name: CLAVE_SESION
+              valueFrom:
+                secretKeyRef:
+                  name: clave-sesion
                   key: latest
             - name: PAYPAL_CLIENT_ID
               valueFrom:
@@ -72,8 +117,18 @@ spec:
                 secretKeyRef:
                   name: groq-api-key
                   key: latest
-          resources:
-            limits:
-              cpu: "1"
-              memory: 512Mi
-"
+          startupProbe:
+            httpGet:
+              path: /api/salud
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 24
+          livenessProbe:
+            httpGet:
+              path: /api/salud
+              port: 8080
+            periodSeconds: 30
+            timeoutSeconds: 3
+            failureThreshold: 3

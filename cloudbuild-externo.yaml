@@ -1,0 +1,113 @@
+# =============================================================================
+#  Cloud Build �� SIGA-DP v2 con PostgreSQL externo (Neon / Supabase)
+# =============================================================================
+#
+#  Úsalo solo si decides NO crear Cloud SQL para ahorrar el costo fijo mensual.
+#  La aplicación se conecta por TCP con TLS; no hay VPC connector ni socket.
+#
+#  Ejemplo con Neon:
+#    gcloud builds submit --config=cloudbuild-externo.yaml `
+#      --substitutions=_BD_HOST=ep-xxxx.us-east-2.aws.neon.tech,_BD_USUARIO=neondb_owner,_BD_NOMBRE=neondb
+#
+#  Requisitos:
+#    �� El proveedor externo permite conexiones desde Internet (Neon/Supabase sí).
+#    �� BD_SSL=true y el certificado se verifica. Si el proveedor usa un
+#      certificado que Node no reconoce, se puede poner BD_SSL_VERIFICAR=false,
+#      pero eso debilita la conexión.
+#    �� Los secretos bd-clave y clave-sesion (y los de integraciones) existen en
+#      Secret Manager.
+#
+#  Coste GCP: Cloud Run y Cloud Build dentro del nivel gratuito para este uso.
+#  Coste del proveedor: Neon Free / Supabase Free (ver docs).
+# =============================================================================
+
+substitutions:
+  _REGION: us-central1
+  _REPO: siga-dp
+  _SERVICE: siga-dp
+  _IMAGE: siga-dp
+  _BD_HOST: CAMBIAR.por-el-host-del-proveedor
+  _BD_PUERTO: "5432"
+  _BD_USUARIO: CAMBIAR
+  _BD_NOMBRE: CAMBIAR
+  _BD_SSL: "true"
+  _BD_SSL_VERIFICAR: "true"
+  _RUN_SA: siga-dp-run@$PROJECT_ID.iam.gserviceaccount.com
+  _MIN_INSTANCES: "0"
+  _MAX_INSTANCES: "2"
+  _CONCURRENCY: "80"
+  _CPU: "1"
+  _MEMORY: 512Mi
+  _TIMEOUT: "300"
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+steps:
+  - id: construir
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --tag
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:$BUILD_ID
+      - --tag
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:latest
+      - .
+
+  - id: publicar-sha
+    name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:$BUILD_ID
+
+  - id: publicar-latest
+    name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:latest
+
+  - id: desplegar
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_SERVICE}
+      - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_IMAGE}:$BUILD_ID
+      - --region=${_REGION}
+      - --platform=managed
+      - --allow-unauthenticated
+      - --port=8080
+      - --set-env-vars=NODE_ENV=production,PUERTO=8080,BD_HOST=${_BD_HOST},BD_PUERTO=${_BD_PUERTO},BD_USUARIO=${_BD_USUARIO},BD_NOMBRE=${_BD_NOMBRE},BD_SSL=${_BD_SSL},BD_SSL_VERIFICAR=${_BD_SSL_VERIFICAR},BD_MAX_CONEXIONES=5,BD_TIEMPO_CONEXION_MS=10000,BD_TIEMPO_SENTENCIA_MS=30000,PAYPAL_ENTORNO=sandbox,PAYPAL_MONEDA=USD,IMECF_API_URL=https://ecf-platform-backend-50801509587.us-central1.run.app,GROQ_MODEL=openai/gpt-oss-120b
+      - --set-secrets=BD_CLAVE=bd-clave:latest,CLAVE_SESION=clave-sesion:latest,PAYPAL_CLIENT_ID=paypal-client-id:latest,PAYPAL_CLIENT_SECRET=paypal-client-secret:latest,PAYPAL_WEBHOOK_ID=paypal-webhook-id:latest,IMECF_API_KEY=imecf-api-key:latest,GROQ_API_KEY=groq-api-key:latest
+      - --min-instances=${_MIN_INSTANCES}
+      - --max-instances=${_MAX_INSTANCES}
+      - --concurrency=${_CONCURRENCY}
+      - --cpu=${_CPU}
+      - --memory=${_MEMORY}
+      - --timeout=${_TIMEOUT}
+      - --cpu-throttling
+      - --service-account=${_RUN_SA}
+      - --labels=app=siga-dp,managed-by=cloud-build
+      - --quiet
+
+  - id: fijar-origenes
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        URL="$$(gcloud run services describe ${_SERVICE} \
+          --region=${_REGION} --format='value(status.url)')"
+        if [ -z "$$URL" ]; then
+          echo "No se pudo leer la URL del servicio." >&2
+          exit 1
+        fi
+        echo "URL pública: $$URL"
+        gcloud run services update ${_SERVICE} \
+          --region=${_REGION} \
+          --update-env-vars=ORIGENES="$$URL" \
+          --quiet
+
+timeout: 1800s

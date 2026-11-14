@@ -38,10 +38,23 @@ const MARCA = "{{CLAVE_HASH}}";
 /** Aplica las semillas. Devuelve cuántos archivos cargó. */
 export async function sembrarBase({
   base = nombreBase(),
-  clave = CLAVE_DE_DESARROLLO,
+  clave = process.env.SEMILLA_CLAVE || CLAVE_DE_DESARROLLO,
   avisar = console.log,
 } = {}) {
   revisarNombreDeBase(base);
+
+  /*
+    En producción no se permite la clave de desarrollo. La semilla crea un
+    usuario con rol de gerente; si se quedara con "gerente"/"gerente", cualquiera
+    que leyera el repositorio entraría al sistema. La clave se pasa por
+    SEMILLA_CLAVE (desde Secret Manager) o por --clave, nunca en el código.
+  */
+  if (process.env.NODE_ENV === "production" && clave.length < 12) {
+    throw new Error(
+      "En producción la clave del administrador debe tener al menos 12 caracteres. " +
+        "Configura SEMILLA_CLAVE (por ejemplo desde Secret Manager) o usa --clave.",
+    );
+  }
 
   const cliente = new pg.Client(datosConexion(base));
   await cliente.connect();
@@ -91,7 +104,10 @@ if (esEjecutableDirecto(import.meta.url)) {
   const posicionClave = argumentos.indexOf("--clave");
 
   const base = posicionBase === -1 ? nombreBase() : argumentos[posicionBase + 1];
-  const clave = posicionClave === -1 ? CLAVE_DE_DESARROLLO : argumentos[posicionClave + 1];
+  const clave =
+    posicionClave === -1
+      ? process.env.SEMILLA_CLAVE || CLAVE_DE_DESARROLLO
+      : argumentos[posicionClave + 1];
 
   sembrarBase({ base, clave })
     .then((cuantos) => {

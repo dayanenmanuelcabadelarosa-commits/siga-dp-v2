@@ -25,6 +25,8 @@ import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
 import pg from "pg";
 
+import { configuracionBd, numeroDelEntorno } from "./configuracion.js";
+
 const aqui = path.dirname(fileURLToPath(import.meta.url));
 const raizServidor = path.resolve(aqui, "..", "..");
 
@@ -60,27 +62,26 @@ types.setTypeParser(20, (valor) => (valor === null ? null : Number(valor)));
 // El tipo DATE (1082) llega como texto "2026-10-07", que es lo que queremos.
 types.setTypeParser(1082, (valor) => valor);
 
-/** Los datos de conexión, tal como los lee el .env. */
+/**
+ * Los datos de conexión, tal como los lee el entorno.
+ *
+ * Se mantiene el nombre `configuracion` porque las pruebas y las herramientas
+ * ya lo importaban así. La lógica real vive en configuracion.js.
+ */
 export function configuracion(extra = {}) {
-  const host = process.env.BD_HOST || "localhost";
-  const esRender = typeof host === "string" && host.endsWith(".render.com");
-  return {
-    host,
-    port: Number(process.env.BD_PUERTO || 5432),
-    user: process.env.BD_USUARIO || "postgres",
-    password: process.env.BD_CLAVE || "",
-    database: process.env.BD_NOMBRE || "siga_dp_v2",
-    ...(esRender ? { ssl: { rejectUnauthorized: false } } : {}),
-    ...extra,
-  };
+  return configuracionBd(extra);
 }
 
 /** Crea un grupo de conexiones. Se usa el de abajo, salvo en las herramientas. */
 export function crearPool(extra = {}) {
   const grupo = new Pool({
     ...configuracion(extra),
-    max: 10,
-    idleTimeoutMillis: 30000,
+    // En Cloud Run se comparte una instancia pequeña de Cloud SQL entre pocas
+    // instancias. BD_MAX_CONEXIONES permite bajarlo sin tocar el código.
+    max: numeroDelEntorno("BD_MAX_CONEXIONES", 10),
+    idleTimeoutMillis: numeroDelEntorno("BD_TIEMPO_INACTIVIDAD_MS", 30000),
+    connectionTimeoutMillis: numeroDelEntorno("BD_TIEMPO_CONEXION_MS", 10000),
+    statement_timeout: numeroDelEntorno("BD_TIEMPO_SENTENCIA_MS", 30000),
   });
 
   grupo.on("error", (error) => {

@@ -1,0 +1,40 @@
+# =============================================================================
+#  Archivos que NO se suben a Cloud Build
+# =============================================================================
+#  gcloud builds submit empaqueta el directorio y lo manda a Cloud Build.
+#  Este archivo evita subir dependencias, compilados, pruebas y, sobre todo,
+#  secretos locales (.env).
+#
+#  El Dockerfile vuelve a excluir lo mismo con .dockerignore: son dos capas.
+# =============================================================================
+
+.git
+.gitignore
+.gcloudignore
+.github
+.vscode
+e2e
+docs
+scripts
+
+node_modules
+**/node_modules
+cliente/dist
+
+**/.env
+**/.env.*
+**/*.pem
+**/*.key
+**/*-sa.json
+**/service-account*.json
+.neon-config.json
+
+**/*.log
+*.log
+*.md
+**/*.md
+
+servidor/pruebas
+cliente/pruebas
+cargar-demo.mjs
+servidor/herramientas/datos-de-demostracion.js

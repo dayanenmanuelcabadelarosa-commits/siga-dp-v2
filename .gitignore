@@ -15,6 +15,11 @@ coverage/
 .env
 .env.local
 .env.*.local
+*.pem
+*.key
+service-account*.json
+*-sa-key.json
+google-credentials*.json
 
 # Pero sí se suben las plantillas
 !.env.example
@@ -30,3 +35,7 @@ yarn-error.log*
 Thumbs.db
 desktop.ini
 *.swp
+
+# Configuracion local del proveedor de base de datos (sin contrasena, pero no
+# se sube: cada maquina puede apuntar a un proyecto distinto)
+.neon-config.json

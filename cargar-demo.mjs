@@ -1,15 +1,44 @@
+/*
+  cargar-demo.mjs �?" datos de demostración para una base de DESARROLLO.
+  ---------------------------------------------------------------------
+
+  Este archivo NO es parte de la aplicación. Es una herramienta manual para
+  dejar una base local con mesas ocupadas, pedidos y cobros de ejemplo.
+
+  Reglas de seguridad:
+
+    �� La conexión sale de servidor/.env o de variables de entorno. Antes había
+      una contraseña de Render escrita aquí; eso era un secreto publicado.
+    �� Se niega a ejecutarse si NODE_ENV=production o si BD_HOST apunta a Cloud
+      SQL, salvo que se pase CONFIRMAR_DEMO=true de forma consciente.
+    �� No se ejecuta desde el contenedor: .dockerignore lo excluye.
+*/
+
+import crypto from "node:crypto";
+import path from "node:path";
+
+import dotenv from "dotenv";
 import pg from "pg";
 
-const { Pool } = pg;
+import { configuracionBd } from "./servidor/src/db/configuracion.js";
 
-const pool = new Pool({
-  host: "dpg-dbpjqdei0phs73ad5lo0-a.oregon-postgres.render.com",
-  port: 5432,
-  user: "siga_dp_db_user",
-  password: "lYV8oQjfAL5dwYwF34kjK48S2mPv593w",
-  database: "siga_dp_db",
-  ssl: { rejectUnauthorized: false },
-});
+// Carga el mismo .env que usa el servidor, sin importar desde dónde se lance.
+dotenv.config({ path: path.resolve("servidor", ".env"), quiet: true });
+
+const host = process.env.BD_HOST || "localhost";
+
+if (
+  (process.env.NODE_ENV === "production" || host.startsWith("/cloudsql/")) &&
+  process.env.CONFIRMAR_DEMO !== "true"
+) {
+  console.error(
+    "Negado: esto carga datos de demostración. Si de verdad quieres hacerlo " +
+      "en esta base, ejecuta con CONFIRMAR_DEMO=true.",
+  );
+  process.exit(1);
+}
+
+const pool = new pg.Pool({ ...configuracionBd(), max: 2 });
 
 async function main() {
   try {
@@ -30,22 +59,20 @@ async function main() {
       const r = await pool.query(
         `INSERT INTO empleado (cedula, nombre, telefono, id_rol, estado_empleado)
          VALUES ($1, $2, $3, $4, 'Activo') RETURNING id_empleado`,
-        [e.cedula, e.nombre, e.telefono, e.id_rol]
+        [e.cedula, e.nombre, e.telefono, e.id_rol],
       );
       const idEmpleado = r.rows[0].id_empleado;
 
-      // Generar hash de clave
-      const crypto = await import("node:crypto");
       const sal = crypto.randomBytes(16).toString("hex");
       const hash = crypto.scryptSync(e.clave, sal, 64, { N: 16384, r: 8, p: 1 }).toString("hex");
-      const claveHash = `${sal}\$${hash}`;
+      const claveHash = `${sal}$${hash}`;
 
       await pool.query(
         `INSERT INTO usuario (usuario, clave_hash, id_empleado, estado, intentos_fallidos)
          VALUES ($1, $2, $3, 'Activo', 0)`,
-        [e.usuario, claveHash, idEmpleado]
+        [e.usuario, claveHash, idEmpleado],
       );
-      console.log(`  ✓ ${e.nombre} (${e.usuario})`);
+      console.log(`  OK ${e.nombre} (${e.usuario})`);
     }
 
     // 2. Ocupar mesas 1-15
@@ -54,16 +81,16 @@ async function main() {
     for (let m = 1; m <= 15; m++) {
       await pool.query(
         "UPDATE mesa SET estado = 'ocupada', personas = $1 WHERE id_mesa = $2",
-        [personasPorMesa[m - 1], m]
+        [personasPorMesa[m - 1], m],
       );
     }
-    console.log("  ✓ 15 mesas ocupadas");
+    console.log("  OK 15 mesas ocupadas");
 
     // 3. Obtener IDs de productos disponibles
     const rProd = await pool.query(
-      "SELECT id_producto FROM producto WHERE activo = true AND disponible = true ORDER BY id_producto LIMIT 50"
+      "SELECT id_producto FROM producto WHERE activo = true AND disponible = true ORDER BY id_producto LIMIT 50",
     );
-    const productosDisponibles = rProd.rows.map(r => r.id_producto);
+    const productosDisponibles = rProd.rows.map((r) => r.id_producto);
     console.log(`\n3. Productos disponibles: ${productosDisponibles.length}`);
 
     // 4. Crear pedidos con líneas para cada mesa
@@ -90,13 +117,16 @@ async function main() {
     for (const m of mesasComensales) {
       const rAbrir = await pool.query(
         "INSERT INTO pedido (id_mesa, id_mesero, estado) VALUES ($1, 1, 'Abierto') RETURNING id_pedido",
-        [m.mesa]
+        [m.mesa],
       );
       const idPedido = rAbrir.rows[0].id_pedido;
       pedidosCreados[m.mesa] = idPedido;
 
-      // Agregar 3-5 líneas aleatorias
-      const prodsSeleccionados = productosDisponibles.sort(() => 0.5 - Math.random()).slice(0, Math.floor(Math.random() * 3) + 2);
+      // 3-5 líneas aleatorias.
+      const prodsSeleccionados = [...productosDisponibles]
+        .sort(() => 0.5 - Math.random())
+        .slice(0, Math.floor(Math.random() * 3) + 2);
+
       for (const pid of prodsSeleccionados) {
         const cantidad = Math.floor(Math.random() * 3) + 1;
         const rProdInfo = await pool.query("SELECT precio FROM producto WHERE id_producto = $1", [pid]);
@@ -104,7 +134,7 @@ async function main() {
         await pool.query(
           `INSERT INTO linea_pedido (id_pedido, id_producto, cantidad, precio_unitario, estado)
            VALUES ($1, $2, $3, $4, 'Enviada')`,
-          [idPedido, pid, cantidad, precio]
+          [idPedido, pid, cantidad, precio],
         );
       }
       console.log(`  Mesa ${m.mesa} (${m.comensal}): pedido ${idPedido} con ${prodsSeleccionados.length} líneas`);
@@ -116,19 +146,18 @@ async function main() {
       const idPedido = pedidosCreados[m];
       const rComanda = await pool.query(
         "INSERT INTO comanda (id_pedido, id_estacion, estado) VALUES ($1, 1, 'Preparado') RETURNING id_comanda",
-        [idPedido]
+        [idPedido],
       );
       const idComanda = rComanda.rows[0].id_comanda;
 
-      // Crear líneas de comanda
       const rLineas = await pool.query(
         "SELECT id_linea_pedido, id_producto, cantidad FROM linea_pedido WHERE id_pedido = $1 AND estado = 'Enviada'",
-        [idPedido]
+        [idPedido],
       );
       for (const lp of rLineas.rows) {
         await pool.query(
           "INSERT INTO linea_comanda (id_comanda, id_linea_pedido, estado) VALUES ($1, $2, 'Preparado')",
-          [idComanda, lp.id_linea_pedido]
+          [idComanda, lp.id_linea_pedido],
         );
       }
       console.log(`  Comanda ${idComanda} (Mesa ${m}): Preparada`);
@@ -142,18 +171,26 @@ async function main() {
     }
 
     // 7. Cobrar cuentas
-    const formasPago = ["Efectivo", "Tarjeta", "PayPal", "Crédito", "Efectivo", "Tarjeta", "PayPal", "Crédito", "Efectivo", "Tarjeta", "PayPal", "Crédito", "Efectivo", "Tarjeta", "PayPal"];
+    const formasPago = [
+      "Efectivo", "Tarjeta", "PayPal", "Crédito",
+      "Efectivo", "Tarjeta", "PayPal", "Crédito",
+      "Efectivo", "Tarjeta", "PayPal", "Crédito",
+      "Efectivo", "Tarjeta", "PayPal",
+    ];
     console.log("\n7. Cobrando cuentas...");
     for (let m = 1; m <= 15; m++) {
       const forma = formasPago[m - 1];
-      const rTotal = await pool.query("SELECT fn_total_cuenta(id_cuenta) as total FROM cuenta WHERE id_mesa = $1 AND estado = 'Abierta'", [m]);
+      const rTotal = await pool.query(
+        "SELECT fn_total_cuenta(id_cuenta) as total FROM cuenta WHERE id_mesa = $1 AND estado = 'Abierta'",
+        [m],
+      );
       const total = Number(rTotal.rows[0].total || 0);
       const recibido = forma === "Efectivo" ? total + 100 : total;
-      const referencia = forma === "Tarjeta" ? `TARJ-${m}` : (forma === "PayPal" ? `PP-${m}` : "");
+      const referencia = forma === "Tarjeta" ? `TARJ-${m}` : forma === "PayPal" ? `PP-${m}` : "";
 
       await pool.query(
         "SELECT fn_cobrar_cuenta($1, $2::forma_pago, $3, $4, $5, $6)",
-        [m, forma, recibido, 1, 0, referencia || null]
+        [m, forma, recibido, 1, 0, referencia || null],
       );
       console.log(`  Mesa ${m} (${forma}, RD$${total}): Cobrado`);
     }
@@ -167,4 +204,4 @@ async function main() {
   }
 }
 
-main();
+void main();
