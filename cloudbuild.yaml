@@ -96,21 +96,21 @@ steps:
       - |
         set -euo pipefail
         printf '%s\n' \
-          'NODE_ENV: production' \
+          'NODE_ENV: "production"' \
           'PUERTO: "8080"' \
-          "BD_HOST: ${_BD_HOST}" \
-          "BD_PUERTO: ${_BD_PUERTO}" \
-          "BD_USUARIO: ${_BD_USUARIO}" \
-          "BD_NOMBRE: ${_BD_NOMBRE}" \
-          "BD_SSL: ${_BD_SSL}" \
-          "BD_SSL_VERIFICAR: ${_BD_SSL_VERIFICAR}" \
+          "BD_HOST: \"${_BD_HOST}\"" \
+          "BD_PUERTO: \"${_BD_PUERTO}\"" \
+          "BD_USUARIO: \"${_BD_USUARIO}\"" \
+          "BD_NOMBRE: \"${_BD_NOMBRE}\"" \
+          "BD_SSL: \"${_BD_SSL}\"" \
+          "BD_SSL_VERIFICAR: \"${_BD_SSL_VERIFICAR}\"" \
           'BD_MAX_CONEXIONES: "5"' \
           'BD_TIEMPO_CONEXION_MS: "10000"' \
           'BD_TIEMPO_SENTENCIA_MS: "30000"' \
-          'PAYPAL_ENTORNO: sandbox' \
-          'PAYPAL_MONEDA: USD' \
-          'IMECF_API_URL: https://ecf-platform-backend-50801509587.us-central1.run.app' \
-          'GROQ_MODEL: openai/gpt-oss-120b' \
+          'PAYPAL_ENTORNO: "sandbox"' \
+          'PAYPAL_MONEDA: "USD"' \
+          'IMECF_API_URL: "https://ecf-platform-backend-50801509587.us-central1.run.app"' \
+          'GROQ_MODEL: "openai/gpt-oss-120b"' \
           "ORIGENES: \"${_ORIGENES}\"" \
           > /workspace/backend_env.yaml
         gcloud run deploy ${_SERVICE_BACKEND} \
