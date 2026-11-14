@@ -22,7 +22,7 @@
 */
 
 import { Eye, EyeOff, Flame, LogIn } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 
@@ -80,8 +80,16 @@ export function PantallaLogin() {
   const [clave, setClave] = useState("");
   const [verClave, setVerClave] = useState(false);
   const [enviando, setEnviando] = useState(false);
+  const [despertando, setDespertando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ayudaClave, setAyudaClave] = useState(false);
+  const montadoRef = useRef(true);
+
+  useEffect(() => {
+    return () => {
+      montadoRef.current = false;
+    };
+  }, []);
 
   const destino =
     destinoDespuesDeEntrar(ubicacion.state) ??
@@ -112,12 +120,36 @@ export function PantallaLogin() {
     setError(null);
     setEnviando(true);
 
+    const esFalloDeConexion = (fallo: unknown): boolean =>
+      typeof fallo === "object" &&
+      fallo !== null &&
+      "codigo" in fallo &&
+      ((fallo as { codigo?: string }).codigo === "SIN_CONEXION" ||
+        (fallo as { codigo?: string }).codigo === "TIEMPO_AGOTADO");
+
     try {
-      await entrar(usuario.trim(), clave);
+      try {
+        await entrar(usuario.trim(), clave);
+      } catch (primerFallo) {
+        // El servidor despierta desde 0 instancias: la primera petición puede
+        // perderse aunque el servidor termine respondiendo. Un segundo
+        // intento, avisando, cubre justo ese caso. Entrar es idempotente.
+        if (!esFalloDeConexion(primerFallo)) throw primerFallo;
+
+        setDespertando(true);
+        setError("El servidor está despertando, dame unos segundos…");
+        await new Promise((listo) => {
+          window.setTimeout(listo, 6_000);
+        });
+
+        if (!montadoRef.current) return;
+        await entrar(usuario.trim(), clave);
+      }
     } catch (fallo) {
       setError(mensajeDeError(fallo));
     } finally {
       setEnviando(false);
+      setDespertando(false);
     }
   }
 
@@ -240,7 +272,7 @@ export function PantallaLogin() {
               tipo="submit"
               anchoCompleto
               cargando={enviando}
-              textoDeCarga="Entrando…"
+              textoDeCarga={despertando ? "Despertando el servidor…" : "Entrando…"}
               icono={<LogIn size={18} aria-hidden="true" />}
             >
               Iniciar sesión

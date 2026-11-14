@@ -24,7 +24,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
 import * as acceso from "../api/acceso";
-import { cuandoExpireLaSesion } from "../api/cliente-http";
+import { cuandoExpireLaSesion, despertarServidor } from "../api/cliente-http";
 import type { UsuarioDeSesion } from "../api/tipos";
 import {
   guardarSesion,
@@ -84,6 +84,9 @@ export function ProveedorSesion({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     montado.current = true;
+    // El servidor corre con 0 instancias: lo despertamos ya, para que el
+    // arranque en frío coincida con el tiempo en que la persona escribe.
+    despertarServidor();
 
     const cruda = leerSesionCruda();
 

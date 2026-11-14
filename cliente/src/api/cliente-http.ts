@@ -80,6 +80,61 @@ function urlDeLaApi(): string {
   return configurada.trim().replace(/\/+$/, "");
 }
 
+/** Espera `ms`. */
+function esperar(ms: number): Promise<void> {
+  return new Promise((listo) => {
+    window.setTimeout(listo, ms);
+  });
+}
+
+/**
+ * Hace el fetch y, solo para GET (idempotente), reintenta ante un fallo de red
+ * inmediato. No reintenta abortos: si se agotó el tiempo límite, el servidor
+ * ya tuvo su oportunidad.
+ */
+async function intentarFetch(
+  url: string,
+  metodo: MetodoHttp,
+  encabezados: Record<string, string>,
+  cuerpo: unknown,
+  signal: AbortSignal,
+  intentos: number,
+): Promise<Response> {
+  let ultimoError: unknown;
+
+  for (let intento = 1; intento <= intentos; intento += 1) {
+    try {
+      return await fetch(url, {
+        method: metodo,
+        headers: encabezados,
+        body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo),
+        signal,
+      });
+    } catch (error) {
+      ultimoError = error;
+
+      const falloDeRedInmediato = error instanceof TypeError;
+      if (intento < intentos && falloDeRedInmediato) {
+        await esperar(intento * 5_000);
+        continue;
+      }
+
+      throw error;
+    }
+  }
+
+  throw ultimoError;
+}
+
+/**
+ * Toca al servidor para despertarlo (el contenedor se enciende y Neon sale de
+ * su suspensión). Se llama al montar la app: así el arranque en frío ocurre
+ * mientras la persona escribe sus credenciales.
+ */
+export function despertarServidor(): void {
+  void fetch(`${urlDeLaApi()}/api/salud`, { method: "GET" }).catch(() => undefined);
+}
+
 /**
  * Hace la petición y deja la respuesta lista. Todo (el token, el tiempo límite
  * y los errores de red) se resuelve aquí, para que `pedir` y `pedirTexto` se
@@ -131,14 +186,14 @@ async function respuestaDeLaApi(
   }, opciones.timeoutMs ?? TIEMPO_MAXIMO_MS);
 
   let respuesta: Response;
+  /* GET es idempotente y se puede repetir: durante el arranque en frío el
+     servidor enciende antes de que el CUERPO de la petición llegue, y el
+     navegador puede reportar fallo aunque el servidor termine arriba.
+     POSTs no se reintentan aquí: podrían ejecutarse dos veces. */
+  const intentos = metodo === "GET" ? 3 : 1;
 
   try {
-    respuesta = await fetch(url, {
-      method: metodo,
-      headers: encabezados,
-      body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo),
-      signal: controlador.signal,
-    });
+    respuesta = await intentarFetch(url, metodo, encabezados, cuerpo, controlador.signal, intentos);
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
       throw new ErrorDeApi(
