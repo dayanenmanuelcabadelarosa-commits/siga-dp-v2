@@ -20,6 +20,7 @@ import type {
 import { mensajeDeError } from "../api/errores";
 import { Alerta } from "../componentes/Alerta";
 import { Boton } from "../componentes/Boton";
+import { BotonExportarPdf } from "../componentes/BotonExportarPdf";
 import { Campo } from "../componentes/Campo";
 import { Cargando } from "../componentes/Cargando";
 import { EncabezadoPagina } from "../componentes/EncabezadoPagina";
@@ -160,9 +161,36 @@ export function Reportes() {
         </div>
 
         <section>
-          <h2 className="mb-3 text-sm font-semibold text-carbon">
-            Ventas por día
-          </h2>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold text-carbon">
+              Ventas por día
+            </h2>
+            <BotonExportarPdf
+              titulo="Ventas por día"
+              subtitulo={desde !== "" && hasta !== "" ? `Del ${desde} al ${hasta}` : desde !== "" ? `Desde ${desde}` : hasta !== "" ? `Hasta ${hasta}` : "Todo el historial"}
+              columnas={[
+                { encabezado: "Fecha" },
+                { encabezado: "Efectivo", alinear: "derecha" },
+                { encabezado: "Tarjeta", alinear: "derecha" },
+                { encabezado: "PayPal", alinear: "derecha" },
+                { encabezado: "Crédito", alinear: "derecha" },
+                { encabezado: "Total", alinear: "derecha" },
+                { encabezado: "Descuentos", alinear: "derecha" },
+                { encabezado: "Pagos", alinear: "derecha" },
+              ]}
+              filas={ventas.map((fila) => [
+                fila.fecha,
+                formatearDinero(fila.efectivo),
+                formatearDinero(fila.tarjeta),
+                formatearDinero(fila.paypal),
+                formatearDinero(fila.credito),
+                formatearDinero(fila.total),
+                formatearDinero(fila.descuentos),
+                fila.pagos,
+              ])}
+              nombreArchivo="ventas_por_dia"
+            />
+          </div>
           <Tabla
             titulo="Ventas por día"
             filas={ventas}
@@ -221,9 +249,28 @@ export function Reportes() {
         </section>
 
         <section>
-          <h2 className="mb-3 text-sm font-semibold text-carbon">
-            Propinas por empleado
-          </h2>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold text-carbon">
+              Propinas por empleado
+            </h2>
+            <BotonExportarPdf
+              titulo="Propinas por empleado"
+              subtitulo={desde !== "" && hasta !== "" ? `Del ${desde} al ${hasta}` : desde !== "" ? `Desde ${desde}` : hasta !== "" ? `Hasta ${hasta}` : "Todo el historial"}
+              columnas={[
+                { encabezado: "Empleado" },
+                { encabezado: "Fecha" },
+                { encabezado: "Cantidad", alinear: "derecha" },
+                { encabezado: "Total", alinear: "derecha" },
+              ]}
+              filas={propinas.map((fila) => [
+                fila.empleado,
+                fila.fecha,
+                fila.cantidad,
+                formatearDinero(fila.total),
+              ])}
+              nombreArchivo="propinas_por_empleado"
+            />
+          </div>
           <Tabla
             titulo="Propinas por empleado"
             filas={propinas}
@@ -257,9 +304,30 @@ export function Reportes() {
         </section>
 
         <section>
-          <h2 className="mb-3 text-sm font-semibold text-carbon">
-            Insumos bajo mínimo
-          </h2>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold text-carbon">
+              Insumos bajo mínimo
+            </h2>
+            <BotonExportarPdf
+              titulo="Insumos bajo mínimo"
+              subtitulo="Insumos por debajo del mínimo registrado"
+              columnas={[
+                { encabezado: "Insumo" },
+                { encabezado: "Existencia", alinear: "derecha" },
+                { encabezado: "Mínimo", alinear: "derecha" },
+                { encabezado: "Faltante", alinear: "derecha" },
+                { encabezado: "Punto" },
+              ]}
+              filas={inventario.map((fila) => [
+                fila.nombre,
+                fila.existencia,
+                fila.minimo,
+                fila.faltante,
+                fila.punto,
+              ])}
+              nombreArchivo="insumos_bajo_minimo"
+            />
+          </div>
           <Tabla
             titulo="Insumos bajo mínimo"
             filas={inventario}
@@ -299,9 +367,30 @@ export function Reportes() {
         </section>
 
         <section>
-          <h2 className="mb-3 text-sm font-semibold text-carbon">
-            Productos agotados
-          </h2>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold text-carbon">
+              Productos agotados
+            </h2>
+            <BotonExportarPdf
+              titulo="Productos agotados"
+              subtitulo="Productos no disponibles actualmente"
+              columnas={[
+                { encabezado: "Producto" },
+                { encabezado: "Categoría" },
+                { encabezado: "Estación" },
+                { encabezado: "Precio", alinear: "derecha" },
+                { encabezado: "Horas agotado", alinear: "derecha" },
+              ]}
+              filas={agotados.map((fila) => [
+                fila.nombre,
+                fila.categoria,
+                fila.estacion,
+                formatearDinero(fila.precio),
+                fila.horas ?? "—",
+              ])}
+              nombreArchivo="productos_agotados"
+            />
+          </div>
           <Tabla
             titulo="Productos agotados"
             filas={agotados}

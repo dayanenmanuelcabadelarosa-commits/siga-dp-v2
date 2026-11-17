@@ -14,15 +14,20 @@ import { MessageCircle, Send, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { preguntarAAnaPula } from "../api/chat";
+import type { ReporteGeneradoPorIa } from "../api/chat";
 import { mensajeDeError } from "../api/errores";
-import { Alerta } from "./Alerta";
 import { Boton } from "./Boton";
+import { Alerta } from "./Alerta";
+import { BotonExportarPdf } from "./BotonExportarPdf";
+import { Tabla } from "./Tabla";
 
 interface Mensaje {
   quien: "yo" | "doña";
   texto: string;
   /** Si lo contestó el modelo o el sistema con los datos de la base. */
   origen?: "groq" | "base";
+  /** El reporte que la IA generó, si la pregunta lo pedía. */
+  reporte?: ReporteGeneradoPorIa | null;
 }
 
 export function ChatDonaPula() {
@@ -52,7 +57,12 @@ export function ChatDonaPula() {
       const resultado = await preguntarAAnaPula(texto);
       setMensajes((actuales) => [
         ...actuales,
-        { quien: "doña", texto: resultado.respuesta, origen: resultado.origen },
+        {
+          quien: "doña",
+          texto: resultado.respuesta,
+          origen: resultado.origen,
+          reporte: resultado.reporte ?? null,
+        },
       ]);
     } catch (fallo) {
       setError(mensajeDeError(fallo));
@@ -103,8 +113,9 @@ export function ChatDonaPula() {
           <div className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
             {mensajes.length === 0 && (
               <p className="text-sm text-madera">
-                Pregúntame por el menú: qué hay, cuánto cuesta y si está
-                disponible.
+                Pregúntame por el menú (precios y disponibilidad) o pídeme un
+                reporte: «¿Cómo fueron las ventas de esta semana?», «Los
+                productos más vendidos del mes», «Reporte de propinas»…
               </p>
             )}
 
@@ -119,6 +130,44 @@ export function ChatDonaPula() {
                 >
                   {mensaje.texto}
                 </p>
+
+                {mensaje.reporte !== undefined && mensaje.reporte !== null && (
+                  <div className="mt-2 max-w-[95%] overflow-x-auto rounded-xl border border-madera/10 bg-white shadow-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-madera/10 bg-crema/60 px-3 py-2">
+                      <div>
+                        <p className="text-xs font-semibold text-carbon">
+                          {mensaje.reporte.titulo}
+                        </p>
+                        {mensaje.reporte.subtitulo !== undefined && (
+                          <p className="text-[10px] text-madera">
+                            {mensaje.reporte.subtitulo}
+                          </p>
+                        )}
+                      </div>
+                      <BotonExportarPdf
+                        titulo={mensaje.reporte.titulo}
+                        subtitulo={mensaje.reporte.subtitulo}
+                        columnas={mensaje.reporte.columnas}
+                        filas={mensaje.reporte.filas}
+                        nombreArchivo={mensaje.reporte.nombreArchivo}
+                      />
+                    </div>
+                    <Tabla
+                      titulo={mensaje.reporte.titulo}
+                      filas={mensaje.reporte.filas.map((fila) => [...fila])}
+                      claveDeFila={(fila) =>
+                        fila.map((celda) => String(celda ?? "")).join("|")
+                      }
+                      vacio="Sin datos para el período."
+                      columnas={mensaje.reporte.columnas.map((columna, indice) => ({
+                        clave: `c${indice}`,
+                        encabezado: columna.encabezado,
+                        alinear: columna.alinear,
+                        render: (fila: (string | number | null)[]) => fila[indice],
+                      }))}
+                    />
+                  </div>
+                )}
 
                 {mensaje.origen === "base" && (
                   <p className="mt-1 text-xs text-madera/70">
@@ -151,7 +200,7 @@ export function ChatDonaPula() {
               type="text"
               value={pregunta}
               onChange={(evento) => setPregunta(evento.target.value)}
-              placeholder="Escribe tu pregunta…"
+              placeholder="Pregunta por el menú o pide un reporte…"
               aria-label="Pregunta para Doña Pula"
               className="flex-1 rounded-xl border border-madera/20 px-3 py-2 text-sm"
               disabled={preguntando}

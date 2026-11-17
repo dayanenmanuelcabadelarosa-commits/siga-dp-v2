@@ -55,6 +55,7 @@ export function rutasDeAsistente() {
         respuesta: resultado.respuesta,
         origen: resultado.origen,
         puedeVerVentas,
+        reporte: resultado.reporte ?? null,
       });
     }),
   );
