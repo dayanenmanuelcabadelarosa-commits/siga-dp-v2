@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Manual de usuario — Asadero Doña Pula</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --carbon: #0B0B0B;
+    --carbon2: #111111;
+    --brasa: #C44C28;
+    --miel: #D9A441;
+    --lima: #0F2612;
+    --verde: #103327;
+    --crema: #FBF7EF;
+    --madera: #6B4E34;
+    --screen: #0D0905;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; background: var(--screen); }
+  body { font-family: "Poppins", system-ui, sans-serif; color: var(--crema); -webkit-font-smoothing: antialiased; }
+  .deck { width: 100vw; height: 100vh; display: flex; overflow-x: hidden; position: relative;
+          background: linear-gradient(90deg, var(--crema) 0%, var(--lima) 100%); }
+  .slide { flex: 0 0 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; padding: 40px; }
+  .pane { padding: 40px; width: 100%; max-width: 1280px; margin: 0 auto; display: grid; grid-template-columns: minmax(300px, 380px) 1fr; gap: 32px; }
+  .eyeb { font: 600 11px Poppins, sans-serif; letter-spacing: 0.18em; text-transform: uppercase; color: var(--brasa);
+          padding: 6px 10px; margin: 6px 0; background: rgba(196,76,40,.14); border-radius: 20px; display: inline-block; }
+  .to { display: block; font-size: 1.7rem; font-weight: 800; line-height: 1.1; color: var(--carbon); margin-bottom: 10px; }
+  .marks { max-width: 400px; }
+  .mark-row { display: flex; gap: 12px; margin-bottom: 14px; }
+  .mark { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; height: 28px; padding: 0 10px;
+          border-radius: 999px; background: var(--brasa); color: var(--crema); font-weight: 700; font-size: 13px; flex-shrink: 0; }
+  .mark-t { font-size: 15px; font-weight: 600; color: var(--carbon2); }
+  .calls { display: grid; gap: 8px; }
+  .callout { background: rgba(255,255,255,0.6); border: 1px solid rgba(196,76,40,.35);
+             border-left: 5px solid var(--brasa); border-radius: 14px; padding: 14px 18px; font-size: 15px; line-height: 1.5; color: var(--carbon); }
+  .callout .head { font-weight: 700; margin-bottom: 6px; }
+  .callout .item { font-weight: 600; }
+  .callout .item b { color: var(--brasa); }
+  .qgrid { display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 10px; }
+  .qgrid .bullet { font-size: 14px; }
+  .nav { position: absolute; top: 16px; right: 18px; display: flex; flex-direction: column; gap: 8px; }
+  .nav button { background: transparent; border: 2px solid var(--carbon); color: var(--carbon); font-weight: 700;
+                font-size: 12px; padding: 7px 11px; border-radius: 8px; max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .footer { position: fixed; bottom: 10px; right: 10px; z-index: 999; padding: 4px 10px; border: 1px solid rgba(196,76,40,.4);
+            background: rgba(11,11,11,.35); color: var(--crema); border-radius: 8px; font-size: 12px;
+            text-transform: uppercase; font-weight: 600; letter-spacing: .08em; }
+</style>
+</head>
+<body>
+<div class="deck" id="deck"></div>
+<nav class="nav" id="nav"></nav>
+<footer class="footer" id="home"></footer>
+<script>
+const SLIDES = [
+  {
+    to: "1. Iniciando sesión",
+    eb: "Iniciando sesión",
+    led: "El punto de entrada del restaurante. Los datos que pide el formulario solo lo llevan los que tienen cuenta en el sistema.",
+    marks: [
+      { n: 1, t: "Usuario — nombre de quien accede al sistema. Vacío por defecto: escríbelo." },
+      { n: 2, t: "Clave — contraseña del usuario. La cuenta se crea vinculada a la cédula registrada en el sistema." },
+      { n: 3, t: "Iniciar sesión — confirma el acceso: genera el token de sesión y abre el módulo inicial." },
+      { n: 4, t: "¿Olvidaste la clave? — guarda la pregunta, sin alterar ni borrar los datos." }
+    ],
+    calls: [
+      "<span>Valores por defecto: Usuario <b>gerente</b> y Clave <b>gerente01</b> — la clave inicial del responsable del asadero.</span>"
+    ]
+  },
+  {
+    to: "2. Inicio",
+    eb: "Inicio",
+    led: "La pantalla principal de Doña Pula: identidad visual y acceso rápido a los módulos del restaurante.",
+    marks: [
+      { n: 1, t: "Menú principal — accesos a Mesas, Pedidos, Cocina, Propinas, Cuentas, Facturación y Corte de caja." },
+      { n: 2, t: "Obtén un 50% de descuento — promoción mostrada en la parte superior; no genera vinculación ni cambio de precio." },
+      { n: 3, t: "Zonas de comida — combinaciones como Salón, Terraza, Familiar, VIP y Exterior." },
+      { n: 4, t: "Botón Salir — cierra la sesión. Ficha opcional, sin estado activo por defecto." }
+    ],
+    calls: [
+      "<span>Logo Doña Pula en esquina — el símbolo de la marca con su paleta (carbón, miel, lima y crema).</span>",
+      "<span>Rango de fechas — los reportes y comprobantes muestran los datos del día seleccionado.</span>"
+    ]
+  },
+  {
+    to: "3. Reportes",
+    eb: "Reportes",
+    led: "El módulo de reportes: 51 reportes disponibles, desde los de ventas hasta los de auditoría.",
+    marks: [
+      { n: 1, t: "Categorías — 8 tipos de reportes: Ventas y caja, Productos, Cocina, Propinas, Inventario, Reservas, Personal y Resumen ejecutivo." },
+      { n: 2, t: "Períodos — filtros Desde / Hasta que se aplican a los reportes que usan fechas." },
+      { n: 3, t: "Exportar — botones PDF y Excel con descarga directa." },
+      { n: 4, t: "Columnas ocultas — varían según el reporte; consultar antes de modificar." },
+      { n: 5, t: "Generar — ejecuta el reporte sin efectos fuera del sistema." }
+    ],
+    calls: [
+      "<span>Botón PDF: descarga el reporte en formato PDF.</span>",
+      "<span>Botón Excel: exporta a fichero .xlsx.</span>"
+    ]
+  },
+  {
+    to: "4. Mesas",
+    eb: "Mesas",
+    led: "El plano de mesas y la agenda: estados actuales (libres, ocupadas, en limpieza y reservadas).",
+    marks: [
+      { n: 1, t: "Barra superior — acceso a Mesas y reservas, Pedidos, Cocina, Propinas, Cuentas, Facturación y Corte de caja." },
+      { n: 2, t: "Sidebar izquierdo — menú principal de acceso a los módulos." },
+      { n: 3, t: "Plano — iconos de mesas con estados visuales y capacidades de personas." },
+      { n: 4, t: "Estados de mesa — Libre, Ocupada, Limpieza y Reservada." }
+    ],
+    calls: [
+      "<span>Zonas: Salón (desarrollo), Terraza, Familiar, VIP y Exterior.</span>",
+      "<span>Mesas del plano: Mesa 1-12 en Salón y Mesa 13-18 en Terraza.</span>"
+    ]
+  },
+  {
+    to: "5. Productos",
+    eb: "Productos",
+    led: "El catálogo amplio del menú: 183 productos con placas visuales, precios en pesos dominicanos (RD$).",
+    marks: [
+      { n: 1, t: "Nombre del producto — placa visual del producto en el menú de Doña Pula." },
+      { n: 2, t: "Categoría y estación — categorías de producto y estaciones de producción." },
+      { n: 3, t: "Precio — precios en pesos dominicanos (RD$)." },
+      { n: 4, t: "Estado y acciones — Activo / Agotado, con botones Editar, Marcado agotado, Dar de baja e Inhabilitar." }
+    ],
+    calls: [
+      "<span>Platos de productos: Costilla de res a la parrilla, CHPO de cerdo, etc.</span>",
+      "<span>Filtros: por estado activo o agotado.</span>"
+    ]
+  },
+  {
+    to: "6. Personal",
+    eb: "Personal",
+    led: "Los datos del personal: empleados, cédulas, roles, estado y fechas de ingreso.",
+    marks: [
+      { n: 1, t: "Tabla de empleados — Cédula, Nombre, Rol, Estado, Fecha de ingreso." },
+      { n: 2, t: "Filtros — por cédula y rol (Dueno, Gerente, Capitán, Cajero, Mesero, Anfitrión, Cocina, Almacén)." },
+      { n: 3, t: "Cuentas de usuario — nombre de usuario, rol y estado." },
+      { n: 4, t: "Botón Nuevo empleado — para añadir personal al sistema." }
+    ],
+    calls: [
+      "<span>Botón Nuevo empleado: registra al nuevo empleado.</span>",
+      "<span>Botón Dar de baja: coloca el empleado en estado Inactivo.</span>"
+    ]
+  },
+  {
+    to: "7. Inventario",
+    eb: "Inventario",
+    led: "El inventario de insumos con cantidades mínimas, existencias y puntos de acceso (Almacén, Cocina, Barra).",
+    marks: [
+      { n: 1, t: "Tabla principal — Nombre de insumo, existencia actual, mínimo y punto de acceso." },
+      { n: 2, t: "Puntos de acceso — Almacén, Cocina y Barra." },
+      { n: 3, t: "Movimientos — entradas por compra y salidas por consumo." },
+      { n: 4, t: "Botón Ajustar — actualiza el inventario." }
+    ],
+    calls: [
+      "<span>Insomos por punto: Carne de res, Pollo, Camarones, Uva, Miel, etc.</span>",
+      "<span>Punto de acceso: Almacén, Cocina o Barra.</span>"
+    ]
+  },
+  {
+    to: "8. Propinas",
+    eb: "Propinas",
+    led: "Registro de propinas por empleado y fecha, con conciliación: esperado, contado y diferencia.",
+    marks: [
+      { n: 1, t: "Tabla de propinas — Empleado, Fecha, Cantidad, Total." },
+      { n: 2, t: "Conciliación — esperado, contado y diferencia (distinta de cero)." },
+      { n: 3, t: "Botón Regenerar — vuelve a generar la conciliación del día." },
+      { n: 4, t: "Filtro por fecha — visualiza propinas por día." }
+    ],
+    calls: [
+      "<span>Resumen: Total en pesos dominicanos.</span>"
+    ]
+  },
+  {
+    to: "9. Cuentas",
+    eb: "Cuentas",
+    led: "Cuentas abiertas del restaurante: monto, mesa, mesero y productos consumidos.",
+    marks: [
+      { n: 1, t: "Cuentas abiertas — mesa, monto, cliente y mesero." },
+      { n: 2, t: "Botón Facturar — despliega NCF, forma de pago y fecha de emisión." },
+      { n: 3, t: "Botón Agregar — menú de ventas para añadir a pedidos." },
+      { n: 4, t: "Cuenta dividida — Botón Dividir cuenta por comensal para repartir." }
+    ],
+    calls: [
+      "<span>Detalle de cuenta: Producto · Cantidad · Importe.</span>",
+      "<span>Total promedio mostrado con cada cuenta.</span>"
+    ]
+  },
+  {
+    to: "10. Facturación",
+    eb: "Facturación",
+    led: "Emisión de comprobantes fiscales con NCF, forma de pago y estado.",
+    marks: [
+      { n: 1, t: "Tabla de facturas — NCF, forma de pago, estado y fecha de emisión." },
+      { n: 2, t: "Botones — Editar y Anular la factura." },
+      { n: 3, t: "Botón Facturar — emite el comprobante fiscal." },
+      { n: 4, t: "Filtro por fecha — ver facturas por día." }
+    ],
+    calls: []
+  },
+  {
+    to: "11. Integraciones",
+    eb: "Integraciones",
+    led: "Estado de sistemas externos: PayPal, IMECF y Asistente IA, con botones de verificación.",
+    marks: [
+      { n: 1, t: "Card PayPal — estado de conexión y enlace de prueba." },
+      { n: 2, t: "Card IMECF — comprobante emitido y timbrado." },
+      { n: 3, t: "Card Asistente IA — estado de grado y modelo integrado." }
+    ],
+    calls: [
+      "<span>Botón Verificar: prueba la conexión con el sistema externo.</span>",
+      "<span>Botón Abrir login: abre el inicio de sesión del sistema externo.</span>"
+    ]
+  },
+  {
+    to: "12. Bitácora",
+    eb: "Bitácora",
+    led: "Registro de auditoría: quién hizo qué y cuándo. Filtros por fecha, acción y tabla.",
+    marks: [
+      { n: 1, t: "Fechas — filtros Desde / Hasta." },
+      { n: 2, t: "Acción — qué se realizó (ej. Comprobante emitido, Pago registrado)." },
+      { n: 3, t: "Tabla afectada — comprobante, cuenta, descuento, mesa." },
+      { n: 4, t: "Filtro por usuario — visualiza acciones de una persona." },
+      { n: 5, t: "Botón Refresh — vuelve a cargar los registros." }
+    ],
+    calls: []
+  }
+];
+
+function build() {
+  const deck = document.getElementById("deck");
+  const nav = document.getElementById("nav");
+  const home = document.getElementById("home");
+  let current = 0;
+
+  function refreshVisibility() {
+    document.querySelectorAll(".slide").forEach((x) => {
+      x.style.display = Number(x.dataset.slide) === current ? "flex" : "none";
+    });
+  }
+
+  SLIDES.forEach((s, i) => {
+    const slide = document.createElement("div");
+    slide.className = "slide";
+    slide.dataset.slide = i;
+    const marksHtml = (s.marks || []).map((m) =>
+      '<div class="mark-row"><span class="mark">' + m.n + '</span><span class="mark-t">' + m.t + "</span></div>"
+    ).join("");
+    const callsHtml = (s.calls || []).map((c) => '<div class="callout"><div class="item">' + c + "</div></div>").join("");
+    slide.innerHTML = `
+      <div class="pane">
+        <div class="title-block"><span class="eyeb" style="display:block">${s.eb}</span><span class="to">${s.to}</span></div>
+        <div class="marks">${marksHtml}</div>
+        <div class="calls">${callsHtml}</div>
+      </div>`;
+    deck.appendChild(slide);
+  });
+
+  SLIDES.forEach((s, i) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = s.to;
+    b.addEventListener("click", () => { current = i; refreshVisibility(); });
+    nav.appendChild(b);
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowRight" || e.key === " " || e.key === "ArrowDown") current = Math.min(SLIDES.length - 1, current + 1);
+    if (e.key === "ArrowLeft" || e.key === "ArrowUp") current = Math.max(0, current - 1);
+    refreshVisibility();
+  });
+
+  home.textContent = `Slide ${current + 1} de ${SLIDES.length} · usa las flechas ← →`;
+  refreshVisibility();
+}
+
+build();
+</script>
+</body>
+</html>
