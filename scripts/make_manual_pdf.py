@@ -1,16 +1,29 @@
 """Genera docs/manual-usuario.pdf: manual de usuario de Asadero Doña Pula (SIGA-DP).
 
-Incluye, por pantalla: captura de pantalla real + descripción de cada botón/elemento + casos de uso.
-Paleta Doña Pula: carbón, miel, lima, crema.
+Diseño profesional: portada con la paleta Doña Pula (swatches de colores), una
+página por pantalla con captura de pantalla real + descripción de todos los
+botones/elementos + casos de uso. Paleta Doña Pula: carbón, miel, lima, crema.
+Fuente: Helvetica (sistema; Poppins no está disponible en este equipo).
 """
 from fpdf import FPDF
 
-MIL = (217, 164, 65)      # D9A441
+FAM = "helvetica"
+MIL = (217, 164, 65)      # D9A441 miel
 CARBON = (11, 11, 11)     # 0B0B0B
-CREMA = (251, 247, 239)  # FBF7EF
+LIMA = (15, 38, 18)       # 0F2612 lima
+CREMA = (251, 247, 239)   # FBF7EF crema
 GRIS = (60, 60, 60)
+GRIS_LIG = (150, 150, 150)
+LIGHT_MEL = (251, 234, 202)
 
 T = "C:\\Users\\dayan\\AppData\\Local\\Temp\\opencode-browser-"
+
+SWATCHES = [
+    ("carbón", (11, 11, 11), "#0B0B0B"),
+    ("miel", MIL, "#D9A441"),
+    ("lima", LIMA, "#0F2612"),
+    ("crema", CREMA, "#FBF7EF"),
+]
 
 SCREENS = [
     {
@@ -198,47 +211,96 @@ SCREENS = [
 ]
 
 
-def head(pdf, txt, size=16, color=MIL):
-    pdf.set_font("helvetica", "B", size)
+def _font(pdf, family, style, size, color):
+    pdf.set_font(family, style, size)
     pdf.set_text_color(*color)
-    pdf.cell(0, 10, txt)
 
 
-def texto(pdf, txt, size=10, bold=False, color=CARBON):
-    pdf.set_font("helvetica", "B" if bold else "", size)
-    pdf.set_text_color(*color)
-    pdf.multi_cell(pdf.w - 20, 5, txt)
+def _fill(pdf, color):
+    pdf.set_fill_color(*color)
 
 
 def portada(pdf):
-    head(pdf, "Manual de usuario - Asadero Doña Pula", size=22)
-    texto(pdf, "Guia profesional de pantallas y botones del sistema SIGA-DP", 14, False, GRIS)
-    pdf.ln(8)
-    texto(pdf, "Capturas reales de la aplicación, con descripción de cada pantalla, botón y caso de uso.")
-    pdf.ln(20)
-    texto(pdf, "Identidad visual", 14, True, CARBON)
-    texto(pdf, "Paleta Doña Pula: carbón (#0B0B0B), miel (#D9A441), lima (#0F2612), crema (#FBF7EF).")
-    texto(pdf, "Tipografía: Poppins. La app está en español.")
+    pdf.add_page()
+    _font(pdf, FAM, "B", 42, CARBON)
+    pdf.set_xy(10, 30)
+    pdf.cell(0, 14, "Manual de usuario - Asadero Doña Pula")
+    _font(pdf, FAM, "", 13, GRIS)
+    pdf.set_y(50)
+    pdf.multi_cell(pdf.w - 20, 6, "Guía profesional de pantallas y botones del sistema SIGA-DP")
+    # swatches de paleta Doña Pula
+    pdf.set_y(68)
+    _font(pdf, FAM, "B", 12, CARBON)
+    pdf.cell(0, 9, "Paleta Doña Pula")
+    for i, (name, rgb, hexs) in enumerate(SWATCHES):
+        x = 10 + i * 66
+        _fill(pdf, rgb)
+        pdf.set_xy(x, 84)
+        pdf.cell(24, 10, "", fill=True)
+        pdf.set_xy(x, 98)
+        _font(pdf, FAM, "", 9, CARBON)
+        pdf.cell(24, 5, name + " " + hexs, align="C")
+    # nota de identidad visual
+    pdf.set_y(118)
+    _font(pdf, FAM, "B", 13, MIL)
+    pdf.cell(0, 9, "Identidad visual")
+    pdf.ln(2)
+    _font(pdf, FAM, "", 10, CARBON)
+    pdf.multi_cell(pdf.w - 20, 5, "La app está en español. Paleta: carbón, miel, lima, crema. Fuente: Helvetica (compatible con Arial).")
+
+
+def section(pdf, txt):
+    _font(pdf, FAM, "B", 13, MIL)
+    pdf.multi_cell(pdf.w - 20, 8, txt)
+    pdf.ln(2)
+
+
+def add_element(pdf, nombre, desc):
+    y = pdf.get_y()
+    _fill(pdf, LIGHT_MEL)
+    pdf.set_xy(10, y)
+    pdf.cell(190, 8, "", fill=True)
+    _font(pdf, FAM, "B", 10, CARBON)
+    pdf.set_xy(10, y + 1.5)
+    pdf.cell(190, 6, nombre)
+    pdf.set_y(y + 9)
+    _font(pdf, FAM, "", 9, GRIS)
+    pdf.multi_cell(pdf.w - 20, 4, desc)
 
 
 def add_screen(pdf, n, s):
     pdf.add_page()
-    head(pdf, f"Pantalla {n}: {s['titulo']}")
-    texto(pdf, s["resumen"], 10, False, GRIS)
-    pdf.ln(2)
-    pdf.image(s["img"], x=10, y=pdf.get_y() + 5, w=190)
-    pdf.set_y(pdf.get_y() + 6)
-    texto(pdf, "Botones y elementos de esta pantalla:", 12, True)
+    # top strip: pantalla
+    _fill(pdf, MIL)
+    pdf.set_xy(10, 10)
+    pdf.cell(190, 6, "", fill=True)
+    _font(pdf, FAM, "", 9, CARBON)
+    pdf.set_xy(10, 10)
+    pdf.cell(190, 6, "PANTALLA " + str(n) + " - " + s["titulo"])
+    # title
+    pdf.set_xy(10, 24)
+    _font(pdf, FAM, "B", 34, CARBON)
+    pdf.cell(0, 12, s["titulo"])
+    # summary
+    pdf.set_y(42)
+    _font(pdf, FAM, "", 10, GRIS)
+    pdf.multi_cell(pdf.w - 20, 5, s["resumen"])
+    # screenshot real
+    pdf.image(s["img"], x=10, y=pdf.get_y() + 3, w=190)
+    pdf.set_y(pdf.get_y() + 4)
+    # botones y elementos
+    section(pdf, "Botones y elementos de esta pantalla")
     for nombre, desc in s["elementos"]:
-        texto(pdf, "- " + nombre, 10, True, MIL)
-        texto(pdf, "    " + desc, 10)
-    texto(pdf, "Casos de uso / Acción:", 12, True)
+        add_element(pdf, nombre, desc)
+    # casos de uso
+    section(pdf, "Casos de uso / Acción")
+    _font(pdf, FAM, "", 10, CARBON)
     for i, caso in enumerate(s["casos"], 1):
-        texto(pdf, f"{i}. {caso}", 10)
+        pdf.multi_cell(pdf.w - 20, 5, str(i) + ". " + caso)
+    # footer
     pdf.set_y(pdf.h - 12)
-    pdf.set_font("helvetica", "", 8)
-    pdf.set_text_color(*GRIS)
-    pdf.cell(0, 6, "Asadero Doña Pula - Manual de usuario (SIGA-DP)")
+    _font(pdf, FAM, "", 8, GRIS_LIG)
+    pdf.cell(0, 6, "Asadero Doña Pula - Manual de usuario - Página " + str(n), align="C")
 
 
 def main():
