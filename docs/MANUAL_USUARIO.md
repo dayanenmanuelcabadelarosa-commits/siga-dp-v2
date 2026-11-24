@@ -2,7 +2,7 @@
 
 Este documento acompañanos a la que se encuentra en Canva (lo título de ambos: **Manual de usuario — Asadero Doña Pula**). Las pantallas están vistas reales (capturas) de los módulos del sistema al igual que en el documento de Canva. La estructura básica de cada pantalla es: título, identificación y descripción de la función, y explicación de los botones que generan acciones.
 
-> La identidad visual: Doña Pula. Si observas que algunas pantallas se presienten en color carbón (#0B0B0B), cara miel (#D9A441), limadora (#0F2612) o verde, actúa siendo consistente (m ATP).
+> La identidad visual: Doña Pula. Si observas que algunas pantallas se presienten en color carbón (#0B0B0B), cara miel (#D9A441), limadora (#0F2612) o verde, actúa siendo consistente.
 
 ---
 
@@ -34,57 +34,60 @@ Este es el punto de entrada. El formulario pide usuario y clave, ambos de acceso
 
 | Elemento | Significado | Acción |
 |---|---|---|
-| Campo del usuario | Nombre de quien accede al sistema | Nada tiene importancia si está vacío al iniciar. |
-| Campo del password | Contraseña del usuario |activo |
+| Campo del usuario | Nombre de quien accede al sistema | Vacío por defecto, escríbelo. |
+| Campo del password | Contraseña del usuario | Vacío por defecto, escríbela. |
+| Botón "Iniciar sesión" | Confirma el acceso al sistema | Genera el token de sesión y abre el módulo inicial. |
+| "¿Olvidaste la clave?" | Guarda la pregunta, no quita datos. | Consume un click. |
 
 ## 2. Inicio
 
-La página principal de Doña Pula después de iniciar sesión. Puedes ver la identidad (el logo de Doña Pula, barra de menú, panel principal con carta de productos). El botón "Obtén un 50% de descuento" es una promoción en la página principal.
+La página principal de Doña Pula después de iniciar sesión. Entrega el menú de acceso principal a los módulos del restaurante, el logo, y a la opción "Obtén un 50% de descuento". Botón "Salir" en la esquina.
 
 ## 3. Reportes
 
-El módulo de reportes. Los reportes están integrados en cajas de sección; al cada uno se puede escoger período desde/hasta, agrupar por día/mes/producto/canal/estación/cajero etc. y exportar a PDF o Excel.
+El módulo de reportes con 51 reportes: desde los de ventas (tickets por día, reporte de propinas, fechas y cajeros, ventas por forma de pago, canales, estación), los de productos (más vendidos por cantidad y por importe), y los de auditoría (Bitácora por mes/día/detalle). Filtros: desde/hasta y páginas pares.
 
 ## 4. Mesas
 
-El plano y la agenda de mesas. Te la visualizarás "1 libre", "0 ocupadas", "0 en limpieza" y categorías como "Salón (desarrollo)", "Terraza" etc. El tejado: "Mesa 1 ... Libre ... Capacidad para 4 personas".
+El plano de mesas y la agenda. Visualizarás: en la barra superior opciones (Mesas y reservas, Pedidos, Cocina, Propinas, Cuentas, Facturación, Corte de caja), en la barra lateral el menú principal de acceso a módulos, y en el plano los iconos de "Mesa 1", "Mesa 2", etc. Las mesas aparecen con capacidades visuales y estados "Ocupada", "Libre", "Limpiebas".
 
 ## 5. Productos
 
-Menú amplio y detallado: ejemplificado con marca Doña Pula, Producto de desarrollo A/B, Platos (desarrollo), listas de número con precios y disponibilidad.
+Catálogo amplio (183 productos): marca Doña Pula, productos de desarrollo, estructura de pedidos. Permite cambio de disponibilidad y cuenta via botones "Editar", "Marcar agotado", "Dar de baja", y filtros por estado activo/inactivo.
 
 ## 6. Personal
 
-Empleados, usuarios y datos del sistema: cédula, nombre, rol, estado. "Nuevo empleado" y "Darse de baja".
+Empleados del sistema con cédulas, nombres, roles (dueno, gerente, capitan, cajero, mesero, anfitrion, cocina, almacen, etc), estado (Activo/Inactivo/Bloqueado), fecha de ingreso y demás. Botón "Nuevo empleado" y "Dar de baja".
 
 ## 7. Inventario
 
-Inventario de insumos por punto (Almacén, Cocina, Barra) con estatus de "faltante". Puedes REPARAR o volver a mover a comida directamente de los menús, sin pasar por los movimientos.
+Inventario de insumos con minimo/faltante y puntos de acceso (Almacén, Cocina, Barra). Similares los móviles con nombrado como "faltante".
 
 ## 8. Propinas
 
-Propinas registradas por empleado y fecha; ve los totales y conciliación (esperado/contado/diferencia).
+Registro de propinas a facturar por empleado y fecha, incluye conciliación (esperado/contado/diferencia) y formas de pago (Tiqueta, y otros más).
 
 ## 9. Cuentas
 
-Cuentas abiertas. Simbolo de "+", botón "Cobrar" y desgloses de líneas. "Facturar" para emitir comprobante.
+Cuentas abiertas del restaurante. Botones de Agregar y Facturar. Puedes buscar y verlas sobre mesas, ver los productos consumidos en cada cuenta y detalles.
 
 ## 10. Facturación
 
-Comprobantes fiscales (NCF) emitidos: detectar según forma de pago y rango de facturación; anular y editar la factura.
+Emisión de facturas (comprobantes fiscales) desde las cuentas, con NCF y rango fiscal. Anulación y edición de factura.
 
 ## 11. Integraciones
 
-Estado de sistemas externos: PayPal, IMECF y Groq. Botón "Verificar" y "Abrir login" para probar en vivo.
+Estado de las integraciones externas: PayPal, IMECF, Asistente IA. Botones de verificación y prueba de conexión.
 
 ## 12. Bitácora
 
-Registro de auditoría (quién hizo qué). Filtros por fecha/acción/tabla y registros con fecha, hora, usuario, acción, detalle y tabla.
+Registro de auditoría: quién hizo qué y cuándo. Filtros de fechas, acción y tabla. Muestra registros con fecha/hora/usuario/acción/detalle.
 
 ---
 
-## Anexo: tipo y estilo de la identidad del sistema
+## Anexo: la identidad visual
 
-- **Paleta Doña Pula**: carbón (#0B0B0B), miel (#D9A441), verde, crema, limadora.
-- **Fuente**: Poppins (usada en el encabezado "ASADERO DOÑA PULA").
-- **Logo y la mascota**: la de Doña Pula en el esquina y pie de página.
+- Paleta Doña Pula: carbón (#0B0B0B), miel (#D9A441), limadora, crema, negros.
+- Tipografía: Poppins.
+- Logos: Doña Pula y la mascota en la esquina.
+- La app es en español.
