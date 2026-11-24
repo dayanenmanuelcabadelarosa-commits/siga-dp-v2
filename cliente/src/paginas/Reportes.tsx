@@ -17,6 +17,7 @@ import { mensajeDeError } from "../api/errores";
 import { Alerta } from "../componentes/Alerta";
 import { Boton } from "../componentes/Boton";
 import { BotonExportarPdf } from "../componentes/BotonExportarPdf";
+import { BotonExportarExcel } from "../componentes/BotonExportarExcel";
 import { Campo } from "../componentes/Campo";
 import { Cargando } from "../componentes/Cargando";
 import { EncabezadoPagina } from "../componentes/EncabezadoPagina";
@@ -238,13 +239,21 @@ export function Reportes() {
                       {datos.filas.length} fila{datos.filas.length === 1 ? "" : "s"}
                     </p>
                   </div>
-                  <BotonExportarPdf
-                    titulo={datos.titulo}
-                    subtitulo={datos.subtitulo}
-                    columnas={datos.columnas}
-                    filas={datos.filas}
-                    nombreArchivo={datos.nombreArchivo}
-                  />
+                  <div className="flex gap-2">
+                    <BotonExportarExcel
+                      titulo={datos.titulo}
+                      columnas={datos.columnas}
+                      filas={datos.filas.map((fila) => [...fila])}
+                      nombreArchivo={`${datos.nombreArchivo}_excel`}
+                    />
+                    <BotonExportarPdf
+                      titulo={datos.titulo}
+                      subtitulo={datos.subtitulo}
+                      columnas={datos.columnas}
+                      filas={datos.filas}
+                      nombreArchivo={datos.nombreArchivo}
+                    />
+                  </div>
                 </div>
 
                 <Tabla

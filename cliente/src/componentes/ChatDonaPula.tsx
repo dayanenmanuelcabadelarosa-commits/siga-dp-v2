@@ -18,6 +18,7 @@ import type { ReporteGeneradoPorIa } from "../api/chat";
 import { mensajeDeError } from "../api/errores";
 import { Boton } from "./Boton";
 import { Alerta } from "./Alerta";
+import { BotonExportarExcel } from "./BotonExportarExcel";
 import { BotonExportarPdf } from "./BotonExportarPdf";
 import { Tabla } from "./Tabla";
 
@@ -144,13 +145,21 @@ export function ChatDonaPula() {
                           </p>
                         )}
                       </div>
-                      <BotonExportarPdf
-                        titulo={mensaje.reporte.titulo}
-                        subtitulo={mensaje.reporte.subtitulo}
-                        columnas={mensaje.reporte.columnas}
-                        filas={mensaje.reporte.filas}
-                        nombreArchivo={mensaje.reporte.nombreArchivo}
-                      />
+                      <div className="flex gap-2">
+                        <BotonExportarExcel
+                          titulo={mensaje.reporte.titulo}
+                          columnas={mensaje.reporte.columnas}
+                          filas={mensaje.reporte.filas.map((fila) => [...fila])}
+                          nombreArchivo={`${mensaje.reporte.nombreArchivo}_excel`}
+                        />
+                        <BotonExportarPdf
+                          titulo={mensaje.reporte.titulo}
+                          subtitulo={mensaje.reporte.subtitulo}
+                          columnas={mensaje.reporte.columnas}
+                          filas={mensaje.reporte.filas}
+                          nombreArchivo={mensaje.reporte.nombreArchivo}
+                        />
+                      </div>
                     </div>
                     <Tabla
                       titulo={mensaje.reporte.titulo}

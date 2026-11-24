@@ -104,6 +104,7 @@ export const CATALOGO = [
                 COALESCE(SUM(pg.monto_recibido - COALESCE(pg.cambio, 0)) FILTER (WHERE pg.forma_pago = 'PayPal'), 0)::FLOAT8 AS paypal,
                 COALESCE(SUM(pg.monto_recibido - COALESCE(pg.cambio, 0)) FILTER (WHERE pg.forma_pago = 'Crédito'), 0)::FLOAT8 AS credito,
                 COALESCE(SUM(pg.monto_recibido - COALESCE(pg.cambio, 0)), 0)::FLOAT8 AS total,
+                COUNT(DISTINCT c.id_cuenta)::INT AS cuentas,
                 COUNT(*)::INT AS pagos,
                 COALESCE(SUM(ds.total_descuento), 0)::FLOAT8 AS descuentos
            FROM pago pg
@@ -128,13 +129,20 @@ export const CATALOGO = [
           { encabezado: "PayPal", alinear: "derecha" },
           { encabezado: "Crédito", alinear: "derecha" },
           { encabezado: "Total", alinear: "derecha" },
+          { encabezado: "Cuentas", alinear: "derecha" },
+          { encabezado: "Ticket promedio", alinear: "derecha" },
           { encabezado: "Pagos", alinear: "derecha" },
           { encabezado: "Descuentos", alinear: "derecha" },
         ],
-        filas: filas.map((f) => [
-          texto(f.fecha), dinero(f.efectivo), dinero(f.tarjeta), dinero(f.paypal),
-          dinero(f.credito), dinero(f.total), entero(f.pagos), dinero(f.descuentos),
-        ]),
+        filas: filas.map((f) => {
+          const total = Number(f.total);
+          const cuentas = Number(f.cuentas) || 1;
+          return [
+            texto(f.fecha), dinero(f.efectivo), dinero(f.tarjeta), dinero(f.paypal),
+            dinero(f.credito), dinero(f.total), entero(f.cuentas),
+            dinero(total / cuentas), entero(f.pagos), dinero(f.descuentos),
+          ];
+        }),
         nombreArchivo: "ventas_por_dia",
       });
     },
@@ -610,14 +618,14 @@ export const CATALOGO = [
     ejecutar: async (desde, hasta) => {
       const { where, valores } = rangoDeFechas("c.abierta_en", desde, hasta);
       const filas = await consultar(
-        `SELECT pr.nombre,
+        `SELECT pr.nombre, pr.precio::FLOAT8 AS precio,
                 SUM(lc.cantidad)::FLOAT8 AS cantidad,
                 SUM(lc.importe)::FLOAT8 AS importe
            FROM linea_cuenta lc
            JOIN producto pr ON pr.id_producto = lc.id_producto
            JOIN cuenta c ON c.id_cuenta = lc.id_cuenta
            ${where}
-          GROUP BY pr.nombre
+          GROUP BY pr.nombre, pr.precio
           ORDER BY cantidad DESC
           LIMIT 25`,
         valores,
@@ -631,9 +639,10 @@ export const CATALOGO = [
           { encabezado: "Producto" },
           { encabezado: "Cantidad", alinear: "derecha" },
           { encabezado: "Importe", alinear: "derecha" },
+          { encabezado: "Precio", alinear: "derecha" },
         ],
         filas: filas.map((f, i) => [
-          entero(i + 1), texto(f.nombre), cantidad(f.cantidad), dinero(f.importe),
+          entero(i + 1), texto(f.nombre), cantidad(f.cantidad), dinero(f.importe), dinero(f.precio),
         ]),
         nombreArchivo: "productos_mas_vendidos_cantidad",
       });
@@ -1917,6 +1926,111 @@ export const CATALOGO = [
         ],
         filas: filas.map((f) => [texto(f.fecha), entero(f.comprobantes), dinero(f.total)]),
         nombreArchivo: "facturas_emitidas_por_dia",
+      });
+    },
+  },
+
+  /* ============================== BITÁCORA ============================== */
+  {
+    codigo: "bitacora-por-mes",
+    titulo: "Bitácora de auditoría por mes",
+    descripcion: "Registros de auditoría agrupados por mes (estado actual: las acciones guardan como «Otro» — validar resaltó 'Otro' al ejecutar).",
+    categoria: "Bitácora",
+    necesitaRango: true,
+    ejecutar: async (desde, hasta) => {
+      const { where, valores } = rangoDeFechas("b.ocurrido_en", desde, hasta);
+      const filas = await consultar(
+        `SELECT to_char(date_trunc('month', (b.ocurrido_en AT TIME ZONE '${ZONA}')), 'YYYY-MM') AS mes,
+                COUNT(*)::INT AS registros
+           FROM bitacora b
+           ${where}
+          GROUP BY 1
+          ORDER BY mes`,
+        valores,
+      );
+
+      return armar({
+        titulo: "Bitácora de auditoría por mes",
+        subtitulo: subtituloRango(desde, hasta),
+        columnas: [
+          { encabezado: "Mes" },
+          { encabezado: "Registros", alinear: "derecha" },
+        ],
+        filas: filas.map((f) => [texto(f.mes), entero(f.registros)]),
+        nombreArchivo: "bitacora_por_mes",
+      });
+    },
+  },
+
+  {
+    codigo: "bitacora-por-fecha",
+    titulo: "Bitácora de auditoría por día",
+    descripcion: "Registros de auditoría agrupados por día.",
+    categoria: "Bitácora",
+    necesitaRango: true,
+    ejecutar: async (desde, hasta) => {
+      const { where, valores } = rangoDeFechas("b.ocurrido_en", desde, hasta);
+      const filas = await consultar(
+        `SELECT (b.ocurrido_en AT TIME ZONE '${ZONA}')::date AS fecha,
+                COUNT(*)::INT AS registros
+           FROM bitacora b
+           ${where}
+          GROUP BY 1
+          ORDER BY fecha`,
+        valores,
+      );
+
+      return armar({
+        titulo: "Bitácora de auditoría por día",
+        subtitulo: subtituloRango(desde, hasta),
+        columnas: [
+          { encabezado: "Fecha" },
+          { encabezado: "Registros", alinear: "derecha" },
+        ],
+        filas: filas.map((f) => [texto(f.fecha), entero(f.registros)]),
+        nombreArchivo: "bitacora_por_fecha",
+      });
+    },
+  },
+
+  {
+    codigo: "bitacora-detalle",
+    titulo: "Bitácora de auditoría (detalle)",
+    descripcion: "Últimos 50 registros de auditoría: fecha, hora, usuario, acción, detalle y tabla afectada.",
+    categoria: "Bitácora",
+    necesitaRango: true,
+    ejecutar: async (desde, hasta) => {
+      const { where, valores } = rangoDeFechas("b.ocurrido_en", desde, hasta);
+      const filas = await consultar(
+        `SELECT (b.ocurrido_en AT TIME ZONE '${ZONA}')::date AS fecha,
+                trim(to_char(b.ocurrido_en AT TIME ZONE '${ZONA}', 'HH24:MI:SS')) AS hora,
+                b.usuario_nombre AS usuario,
+                b.accion,
+                b.detalle,
+                b.tabla_afectada AS tabla
+           FROM bitacora b
+           ${where}
+          ORDER BY b.ocurrido_en DESC
+          LIMIT 50`,
+        valores,
+      );
+
+      return armar({
+        titulo: "Bitácora de auditoría (detalle)",
+        subtitulo: subtituloRango(desde, hasta),
+        columnas: [
+          { encabezado: "Fecha" },
+          { encabezado: "Hora" },
+          { encabezado: "Usuario" },
+          { encabezado: "Acción" },
+          { encabezado: "Detalle" },
+          { encabezado: "Tabla" },
+        ],
+        filas: filas.map((f) => [
+          texto(f.fecha), texto(f.hora), texto(f.usuario), texto(f.accion),
+          texto(f.detalle), texto(f.tabla),
+        ]),
+        nombreArchivo: "bitacora_detalle",
       });
     },
   },
