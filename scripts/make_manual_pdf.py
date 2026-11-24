@@ -28,7 +28,7 @@ SWATCHES = [
 SCREENS = [
     {
         "titulo": "Iniciando sesión",
-        "img": T + "9zIT0f\\0\\screenshot.jpeg",
+        "img": T + "ZHo7G6\\0\\screenshot.jpeg",
         "resumen": "Formulario de entrada a la aplicación: campos de usuario y clave y generación del token de sesión.",
         "elementos": [
             ("Campo del usuario", "Nombre de quien accede al sistema. Vacío por defecto: escríbelo."),
@@ -44,7 +44,7 @@ SCREENS = [
     },
     {
         "titulo": "Inicio",
-        "img": T + "BrAJ3H\\0\\screenshot.jpeg",
+        "img": T + "AVOKC0\\0\\screenshot.jpeg",
         "resumen": "Pantalla principal de Doña Pula: acceso rápido a los módulos del restaurante.",
         "elementos": [
             ("Menú principal", "Accesos a Mesas, Pedidos, Cocina, Propinas, Cuentas, Facturación y Corte de caja."),
@@ -59,7 +59,7 @@ SCREENS = [
     },
     {
         "titulo": "Reportes",
-        "img": T + "ZJpQsB\\0\\screenshot.jpeg",
+        "img": T + "IlL6Ar\\0\\screenshot.jpeg",
         "resumen": "Módulo de reportes: 51 reportes disponibles, desde ventas hasta auditoría.",
         "elementos": [
             ("Categorías de reportes", "8 tipos: Ventas y caja, Productos, Cocina, Propinas, Inventario, Reservas, Personal y Resumen ejecutivo."),
@@ -75,7 +75,7 @@ SCREENS = [
     },
     {
         "titulo": "Mesas",
-        "img": T + "hUAhPf\\0\\screenshot.jpeg",
+        "img": T + "w1254m\\0\\screenshot.jpeg",
         "resumen": "Plano de mesas y agenda: estados actuales (libres, ocupadas, en limpieza, reservadas).",
         "elementos": [
             ("Barra superior", "Opciones de acceso: Mesas y reservas, Pedidos, Cocina, Propinas, Cuentas, Facturación y Corte de caja."),
@@ -90,7 +90,7 @@ SCREENS = [
     },
     {
         "titulo": "Productos",
-        "img": T + "khEauB\\0\\screenshot.jpeg",
+        "img": T + "sswHFm\\0\\screenshot.jpeg",
         "resumen": "Catálogo amplio del menú: 183 productos con placas visuales y precios en pesos dominicanos (RD$).",
         "elementos": [
             ("Nombre del producto", "Placa visual del producto en el menú de Doña Pula."),
@@ -105,7 +105,7 @@ SCREENS = [
     },
     {
         "titulo": "Personal",
-        "img": T + "04BLVq\\0\\screenshot.jpeg",
+        "img": T + "yTuLev\\0\\screenshot.jpeg",
         "resumen": "Datos del personal: empleados, cédulas, roles, estado y fechas de ingreso.",
         "elementos": [
             ("Tabla de empleados", "Cédula, Nombre, Rol, Estado, Fecha de ingreso."),
@@ -121,7 +121,7 @@ SCREENS = [
     },
     {
         "titulo": "Inventario",
-        "img": T + "rgz92X\\0\\screenshot.jpeg",
+        "img": T + "vmzcQu\\0\\screenshot.jpeg",
         "resumen": "Inventario de insumos con mínimos, existencias y puntos de acceso (Almacén, Cocina, Barra).",
         "elementos": [
             ("Tabla principal", "Nombre de insumo, existencia actual, mínimo y punto de acceso."),
@@ -135,7 +135,7 @@ SCREENS = [
     },
     {
         "titulo": "Propinas",
-        "img": T + "6jUZaV\\0\\screenshot.jpeg",
+        "img": T + "3hTSVw\\0\\screenshot.jpeg",
         "resumen": "Registro de propinas por empleado y fecha, con conciliación: esperado, contado y diferencia.",
         "elementos": [
             ("Tabla de propinas", "Empleado, Fecha, Cantidad, Total."),
@@ -150,7 +150,7 @@ SCREENS = [
     },
     {
         "titulo": "Cuentas",
-        "img": T + "7LZM3j\\0\\screenshot.jpeg",
+        "img": T + "07CNB3\\0\\screenshot.jpeg",
         "resumen": "Cuentas abiertas del restaurante: monto, mesa, mesero y productos consumidos.",
         "elementos": [
             ("Cuentas abiertas", "Mesa, monto, cliente y mesero."),
@@ -165,7 +165,7 @@ SCREENS = [
     },
     {
         "titulo": "Facturación",
-        "img": T + "ImDVxe\\0\\screenshot.jpeg",
+        "img": T + "TdDQtu\\0\\screenshot.jpeg",
         "resumen": "Emisión de comprobantes fiscales desde las cuentas, con NCF y forma de pago.",
         "elementos": [
             ("Tabla de facturas", "NCF, forma de pago, estado y fecha de emisión."),
@@ -180,7 +180,7 @@ SCREENS = [
     },
     {
         "titulo": "Integraciones",
-        "img": T + "OiG5e6\\0\\screenshot.jpeg",
+        "img": T + "qQN8E8\\0\\screenshot.jpeg",
         "resumen": "Estado de sistemas externos: PayPal, IMECF y Asistente IA, con botones de verificación.",
         "elementos": [
             ("Card PayPal", "Estado de conexión y enlace de prueba."),
@@ -195,7 +195,7 @@ SCREENS = [
     },
     {
         "titulo": "Bitácora",
-        "img": T + "kr40l8\\0\\screenshot.jpeg",
+        "img": T + "1g3z3u\\0\\screenshot.jpeg",
         "resumen": "Registro de auditoría: quién hizo qué y cuándo. Filtros por fecha, acción y tabla.",
         "elementos": [
             ("Filtros Desde / Hasta", "Rango de fechas para visualizar registros."),
