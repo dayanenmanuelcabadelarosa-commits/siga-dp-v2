@@ -196,16 +196,15 @@ SCREENS = [
     {
         "titulo": "Bitácora",
         "img": T + "1g3z3u\\0\\screenshot.jpeg",
-        "resumen": "Registro de auditoría: quién hizo qué y cuándo. Filtros por fecha, acción y tabla.",
+        "resumen": "Registro de auditoría: quién hizo qué y cuándo. Filtros por fecha y usuario.",
         "elementos": [
             ("Filtros Desde / Hasta", "Rango de fechas para visualizar registros."),
-            ("Registro de auditoría", "Acciones registradas (ej. Comprobante emitido, Pago registrado)."),
-            ("Tabla con usuarios y tablas afectadas", "Comprobante, cuenta, descuento, mesa."),
+            ("Registro de auditoría", "Qué se registra del movimiento: usuario, detalle y fecha/hora."),
             ("Botón Refresh", "Vuelve a cargar los registros."),
         ],
         "casos": [
             "Consultar quién hizo qué y cuándo.",
-            "Filtrar por fecha, acción, tabla y usuario.",
+            "Filtrar por fecha.",
         ],
     },
 ]
