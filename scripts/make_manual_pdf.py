@@ -292,7 +292,7 @@ def add_screen(pdf, n, s):
     for nombre, desc in s["elementos"]:
         add_element(pdf, nombre, desc)
     # casos de uso
-    section(pdf, "Casos de uso / Acción")
+    section(pdf, "Casos de uso")
     _font(pdf, FAM, "", 10, CARBON)
     for i, caso in enumerate(s["casos"], 1):
         pdf.multi_cell(pdf.w - 20, 5, str(i) + ". " + caso)
